@@ -50,6 +50,12 @@ class VQAmedModel(nn.Module):
         super(VQAmedModel, self).__init__()
         gpttype = args.model_type
         self.gpttype = gpttype
+        if gpttype == 'microsoft/biogpt':
+            self.model_type = 'biogpt'
+        elif gpttype.startswith('gpt2'):
+            self.model_type = 'gpt2'
+        else:
+            self.model_type = 'gpt2'
         self.setting = setting
         self.prefix_length = prefix_length
         self.gpt = AutoModelForCausalLM.from_pretrained(gpttype,load_in_8bit=True,device_map='auto')
@@ -128,7 +134,7 @@ class VQAmedModel_abl(nn.Module):
     ):
         super(VQAmedModel_abl, self).__init__()
         gpttype = "gpt2-xl"
-        self.model_type = gpttype
+        self.model_type = 'gpt2'
         self.setting = setting
         self.prefix_length = prefix_length
         self.gpt = GPT2LMHeadModel.from_pretrained(gpttype,load_in_8bit=True,device_map='auto')

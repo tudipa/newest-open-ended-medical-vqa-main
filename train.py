@@ -12,17 +12,15 @@ import os
 import numpy as np
 import random
 import pandas as pd
-from transformers import (
-    AdamW,
-    get_linear_schedule_with_warmup,
-)
+from transformers import get_linear_schedule_with_warmup
 from torch.nn import functional as nnf
+from torch.optim import AdamW
 from accelerate import Accelerator
 import pdb
 
 
 def pytorch_model_run(train_loader, valid_loader, model_obj, args):
-    ## 💡 using accelerator 
+    ## ðŸ’¡ using accelerator 
     accelerator = Accelerator()
     device = accelerator.device
 
@@ -40,7 +38,7 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
         num_training_steps=args.epochs * len(train_loader),
     )
 
-    ## 💡 introduce all components to accelerate library
+    ## ðŸ’¡ introduce all components to accelerate library
     model, optimizer, train_loader, scheduler = accelerator.prepare(
         model, optimizer, train_loader, scheduler
     )
