@@ -25,8 +25,10 @@ echo "Checkpoint directory: $RUN_DIR"
 
 # Persist full run metadata for reproducibility
 CONFIG_FILE="$RUN_DIR/run_config.txt"
+START_EPOCH=$(date +%s)
+START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
 {
-  echo "timestamp=$(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo "timestamp=$START_HUMAN"
   echo "job_id=${SLURM_JOB_ID}"
   echo "job_name=${SLURM_JOB_NAME:-slake_train}"
   echo "node_list=${SLURM_JOB_NODELIST:-unknown}"
@@ -53,3 +55,20 @@ python main.py \
   --epochs 30 \
   --lr 5e-3 \
   --out_dir "$RUN_DIR"
+
+END_EPOCH=$(date +%s)
+END_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
+ELAPSED_SEC=$((END_EPOCH - START_EPOCH))
+ELAPSED_H=$((ELAPSED_SEC / 3600))
+ELAPSED_M=$(((ELAPSED_SEC % 3600) / 60))
+ELAPSED_S=$((ELAPSED_SEC % 60))
+
+{
+  echo ""
+  echo "run_start=$START_HUMAN"
+  echo "run_end=$END_HUMAN"
+  echo "elapsed_seconds=$ELAPSED_SEC"
+  echo "elapsed_hms=${ELAPSED_H}h ${ELAPSED_M}m ${ELAPSED_S}s"
+  echo "elapsed_minutes=$(awk \"BEGIN {printf \\\"%.2f\\\", $ELAPSED_SEC/60}\")"
+  echo "elapsed_hours=$(awk \"BEGIN {printf \\\"%.2f\\\", $ELAPSED_SEC/3600}\")"
+} >> "$CONFIG_FILE"

@@ -17,6 +17,7 @@ from torch.nn import functional as nnf
 from torch.optim import AdamW
 from accelerate import Accelerator
 import pdb
+import csv
 
 
 def pytorch_model_run(train_loader, valid_loader, model_obj, args):
@@ -44,7 +45,11 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
     )
     valid_loader = accelerator.prepare(valid_loader)
 
-    
+    epoch_log_path = os.path.join(args.out_dir, "epoch_log.csv")
+    with open(epoch_log_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["epoch", "train_loss", "val_loss", "epoch_seconds", "epoch_minutes", "epoch_hours"])
+
     best_valid_loss = float("inf")
     n_epochs = args.epochs
     accelerator.wait_for_everyone()

@@ -59,3 +59,10 @@ This file tracks changes made by the coding assistant so project updates are aud
 ### 2026-04-15
 - Files changed: `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
 - Summary: Added automatic run metadata logging for training jobs to `${RUN_DIR}/run_config.txt`, including Slurm job details, conda env, Python version, git branch/commit, and full `main.py` argument string.
+### 2026-04-15
+- Files changed: `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Added end-of-job runtime tracking to `run_config.txt`, including start/end timestamps, elapsed seconds, elapsed HMS, elapsed minutes, and elapsed hours.
+### 2026-04-15
+- Files changed: `train.py`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Added per-epoch runtime logging to `${out_dir}/epoch_log.csv` with epoch number, train/val losses, epoch duration in seconds, minutes, and hours.
+- Validation: `train.py` syntax check passed.
