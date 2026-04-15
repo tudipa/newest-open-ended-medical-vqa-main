@@ -24,6 +24,27 @@ mkdir -p "$RUN_DIR"
 
 echo "Checkpoint directory: $RUN_DIR"
 
+# Defaults (override via sbatch --export)
+DATASET="${DATASET:-slake}"
+DATASET_PATH="${DATASET_PATH:-/home/s225507154/datasets/}"
+MODEL_TYPE="${MODEL_TYPE:-gpt2-xl}"
+SETTING="${SETTING:-frozen}"
+PREFIX_LENGTH="${PREFIX_LENGTH:-8}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
+EPOCHS="${EPOCHS:-30}"
+LR="${LR:-5e-3}"
+
+set -- \
+  --dataset "$DATASET" \
+  --dataset_path "$DATASET_PATH" \
+  --model_type "$MODEL_TYPE" \
+  --setting "$SETTING" \
+  --prefix_length "$PREFIX_LENGTH" \
+  --batch_size "$BATCH_SIZE" \
+  --epochs "$EPOCHS" \
+  --lr "$LR" \
+  --out_dir "$RUN_DIR"
+
 # Persist full run metadata for reproducibility
 CONFIG_FILE="$RUN_DIR/run_config.txt"
 START_EPOCH=$(date +%s)
@@ -43,7 +64,7 @@ START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
   echo "git_branch=$(git branch --show-current 2>/dev/null || echo unknown)"
   echo "project_dir=/home/s225507154/projects/newest-open-ended-medical-vqa-main"
   echo ""
-  echo "train_args=--dataset slake --dataset_path /home/s225507154/datasets/ --model_type gpt2-xl --setting frozen --prefix_length 8 --batch_size 32 --epochs 30 --lr 5e-3 --out_dir $RUN_DIR"
+  echo "train_args=$*"
 } > "$CONFIG_FILE"
 
 # GPU details from PyTorch (portable fallback when nvidia-smi is unavailable)
@@ -62,16 +83,7 @@ else:
     print("gpu_device_count=0")
 PY
 
-python main.py \
-  --dataset slake \
-  --dataset_path /home/s225507154/datasets/ \
-  --model_type gpt2-xl \
-  --setting frozen \
-  --prefix_length 8 \
-  --batch_size 32 \
-  --epochs 30 \
-  --lr 5e-3 \
-  --out_dir "$RUN_DIR"
+python main.py "$@"
 
 END_EPOCH=$(date +%s)
 END_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
