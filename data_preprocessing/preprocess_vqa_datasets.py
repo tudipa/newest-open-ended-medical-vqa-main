@@ -167,11 +167,17 @@ def preprocess_ovqa(split, out_path):
     print("%0d embeddings saved " % len(all_questions))
 
 
-def preprocess_slake(split, out_path):
-    device = torch.device("cuda:0")
+def preprocess_slake(split, out_path, slake_root="/home/s225507154/datasets/slake", device_str="cuda:0"):
+    split_to_json = {"train": "train", "val": "validation", "test": "test"}
+    source_split = split_to_json[split]
+
+    device = torch.device(device_str)
     clip_model, preprocess = clip.load("ViT-B/32", device=device, jit=False)
-    with open("../vqa_datasets/slake/Slake1.0/{}.json".format(split)) as f:
+
+    json_path = os.path.join(slake_root, f"{source_split}.json")
+    with open(json_path) as f:
         data = json.load(f)
+
     print("%0d captions loaded from json " % len(data))
     all_img_prefixes = []
     img_ids = []
@@ -184,7 +190,7 @@ def preprocess_slake(split, out_path):
         d = data[i]
         if isEglish(d["answer"]) and isEglish(d["question"]):
             img_id = d["img_id"]
-            filename = "../vqa_datasets/slake/Slake1.0/imgs/" + d["img_name"]
+            filename = os.path.join(slake_root, "imgs", d["img_name"])
             with torch.no_grad():
                 prefix_i = clip_model.encode_image(preprocess(Image.open(filename)).unsqueeze(0).to(device)).cpu()
             if img_id not in img_dict:
@@ -215,30 +221,43 @@ def preprocess_slake(split, out_path):
     print("%0d embeddings saved " % len(all_questions))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="slake", choices=("slake", "ovqa", "pathvqa", "all"))
+    parser.add_argument("--slake_root", type=str, default="/home/s225507154/datasets/slake")
+    parser.add_argument("--device", type=str, default="cuda:0")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    for split in ["train", "val", "test"]:
-        out_path = "../vqa_datasets/slake/{}.pkl".format(split)
-        preprocess_slake(split, out_path)
-    update_classes(
-        "../vqa_datasets/slake/train.pkl",
-        "../vqa_datasets/slake/val.pkl",
-        "../vqa_datasets/slake/test.pkl",
-    )
+    args = parse_args()
 
-    for split in ["train", "val", "test"]:
-        out_path = "../vqa_datasets/ovqa/{}.pkl".format(split)
-        preprocess_ovqa(split, out_path)
-    update_classes(
-        "../vqa_datasets/ovqa/train.pkl",
-        "../vqa_datasets/ovqa/val.pkl",
-        "../vqa_datasets/ovqa/test.pkl",
-    )
+    if args.dataset in ("slake", "all"):
+        for split in ["train", "val", "test"]:
+            out_path = os.path.join(args.slake_root, f"{split}.pkl")
+            preprocess_slake(split, out_path, slake_root=args.slake_root, device_str=args.device)
+        update_classes(
+            os.path.join(args.slake_root, "train.pkl"),
+            os.path.join(args.slake_root, "val.pkl"),
+            os.path.join(args.slake_root, "test.pkl"),
+        )
 
-    for split in ["train", "val", "test"]:
-        out_path = "../vqa_datasets/pathvqa/{}.pkl".format(split)
-        preprocess_pathvqa(split, out_path)
-    update_classes(
-        "../vqa_datasets/pathvqa/train.pkl",
-        "../vqa_datasets/pathvqa/val.pkl",
-        "../vqa_datasets/pathvqa/test.pkl",
-    )
+    if args.dataset in ("ovqa", "all"):
+        for split in ["train", "val", "test"]:
+            out_path = "../vqa_datasets/ovqa/{}.pkl".format(split)
+            preprocess_ovqa(split, out_path)
+        update_classes(
+            "../vqa_datasets/ovqa/train.pkl",
+            "../vqa_datasets/ovqa/val.pkl",
+            "../vqa_datasets/ovqa/test.pkl",
+        )
+
+    if args.dataset in ("pathvqa", "all"):
+        for split in ["train", "val", "test"]:
+            out_path = "../vqa_datasets/pathvqa/{}.pkl".format(split)
+            preprocess_pathvqa(split, out_path)
+        update_classes(
+            "../vqa_datasets/pathvqa/train.pkl",
+            "../vqa_datasets/pathvqa/val.pkl",
+            "../vqa_datasets/pathvqa/test.pkl",
+        )

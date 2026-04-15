@@ -26,6 +26,13 @@ This file tracks changes made by the coding assistant so project updates are aud
 - Files changed: `main.py`, `models.py`, `data_preprocessing/preprocess_vqa_datasets.py`
 - Summary: Fixed must-do blockers: corrected dataloader import path, removed undefined `args.data_partition` usage, allowed `ablation=none`, aligned model compatibility field (`model_type`) for generation, fixed preprocessing dictionary index bugs, and replaced invalid `update_classes()` calls with explicit train/val/test pickle paths per dataset.
 - Validation: Python syntax check passed for core modules using in-memory `compile(...)` (no pycache writes).
+
 ### 2026-04-15
-- Files changed: 	rain.py`n- Summary: Updated optimizer import to 	orch.optim.AdamW (instead of deprecated/removed 	ransformers.AdamW) while keeping get_linear_schedule_with_warmup from 	ransformers for compatibility with current package versions.
-- Validation: python main.py --help now runs successfully.
+- Files changed: `train.py`
+- Summary: Updated optimizer import to `torch.optim.AdamW` (instead of deprecated/removed `transformers.AdamW`) while keeping `get_linear_schedule_with_warmup` from `transformers` for compatibility with current package versions.
+- Validation: `python main.py --help` now runs successfully.
+
+### 2026-04-15
+- Files changed: `data_preprocessing/preprocess_vqa_datasets.py`
+- Summary: Adjusted hardcoded SLaKE preprocessing paths to use the real dataset root (`/home/s225507154/datasets/slake`) directly, mapped `val` split to `validation.json`, and added CLI args (`--dataset`, `--slake_root`, `--device`) with SLaKE-only default behavior.
+- Validation: Python syntax check passed for `data_preprocessing/preprocess_vqa_datasets.py`.
