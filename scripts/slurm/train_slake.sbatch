@@ -2,6 +2,7 @@
 #SBATCH --job-name=slake_train
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
+#SBATCH --exclude=g16-2gpu-1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
@@ -44,6 +45,22 @@ START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
   echo ""
   echo "train_args=--dataset slake --dataset_path /home/s225507154/datasets/ --model_type gpt2-xl --setting frozen --prefix_length 8 --batch_size 32 --epochs 30 --lr 5e-3 --out_dir $RUN_DIR"
 } > "$CONFIG_FILE"
+
+# GPU details from PyTorch (portable fallback when nvidia-smi is unavailable)
+python - <<'PY' >> "$CONFIG_FILE"
+import torch
+if torch.cuda.is_available():
+    p = torch.cuda.get_device_properties(0)
+    print(f"gpu_name={p.name}")
+    print(f"gpu_total_memory_gb={p.total_memory/1024**3:.2f}")
+    print(f"gpu_compute_capability={p.major}.{p.minor}")
+    print(f"gpu_device_count={torch.cuda.device_count()}")
+else:
+    print("gpu_name=no_cuda")
+    print("gpu_total_memory_gb=0")
+    print("gpu_compute_capability=none")
+    print("gpu_device_count=0")
+PY
 
 python main.py \
   --dataset slake \

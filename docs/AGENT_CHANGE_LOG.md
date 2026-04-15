@@ -66,3 +66,9 @@ This file tracks changes made by the coding assistant so project updates are aud
 - Files changed: `train.py`, `docs/AGENT_CHANGE_LOG.md`
 - Summary: Added per-epoch runtime logging to `${out_dir}/epoch_log.csv` with epoch number, train/val losses, epoch duration in seconds, minutes, and hours.
 - Validation: `train.py` syntax check passed.
+### 2026-04-15
+- Files changed: `scripts/slurm/preprocess_slake.sbatch`, `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Added Slurm node exclusion directive `#SBATCH --exclude=g16-2gpu-1` to avoid scheduling on the specified GPU node for preprocessing and training jobs.
+### 2026-04-15
+- Files changed: `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Added GPU metadata logging via PyTorch to `run_config.txt` (`gpu_name`, total memory GB, compute capability, and visible device count), with graceful no-CUDA fallback.
