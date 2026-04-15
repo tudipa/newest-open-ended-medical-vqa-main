@@ -43,4 +43,13 @@ This file tracks changes made by the coding assistant so project updates are aud
 
 ### 2026-04-15
 - Files changed: `scripts/slurm/preprocess_slake.sbatch`, `scripts/slurm/submit_and_log.sh`, `logs/slurm/.gitkeep`
-- Summary: Updated Slurm workflow to write stdout/stderr under `logs/slurm/`, added safe conda activation guard (`set +u` around `conda activate`) to avoid `ADDR2LINE` unbound variable failures, and kept scripts encoded as UTF-8 without BOM and LF line endings for Slurm compatibility.
+- Summary: Updated Slurm workflow to write stdout/stderr under `logs/slurm/`, added safe conda activation guard (`set +u` around `conda activate`) to avoid `ADDR2LINE` unbound variable failures, and kept scripts encoded as UTF-8 without BOM and LF line endings for Slurm compatibility.### 2026-04-15
+- Files changed: `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Added Slurm training job script for SLaKE using `--setting frozen` (no LoRA), with cluster paths and logs under `logs/slurm/`.
+### 2026-04-15
+- Files changed: `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Updated training Slurm command formatting to one parameter per line and changed `--batch_size` from `4` to `32` to match requested default-scale run.
+### 2026-04-15
+- Files changed: `train.py`, `scripts/slurm/train_slake.sbatch`, `docs/AGENT_CHANGE_LOG.md`
+- Summary: Updated SLaKE training config to `--lr 5e-3` and removed early stopping termination logic so training runs the full configured number of epochs.
+- Validation: `train.py` syntax check passed.

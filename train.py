@@ -46,7 +46,6 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
 
     
     best_valid_loss = float("inf")
-    counter = 0
     n_epochs = args.epochs
     accelerator.wait_for_everyone()
     for epoch in range(args.epochs):
@@ -133,8 +132,4 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                 epoch + 1, n_epochs, avg_loss, avg_val_loss, elapsed_time
             )
         )
-        if avg_val_loss > avg_loss:
-            counter += 1
-        if counter == 5:
-            break
     return model
