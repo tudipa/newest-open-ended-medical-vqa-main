@@ -35,4 +35,6 @@ This file tracks changes made by the coding assistant so project updates are aud
 ### 2026-04-15
 - Files changed: `data_preprocessing/preprocess_vqa_datasets.py`
 - Summary: Adjusted hardcoded SLaKE preprocessing paths to use the real dataset root (`/home/s225507154/datasets/slake`) directly, mapped `val` split to `validation.json`, and added CLI args (`--dataset`, `--slake_root`, `--device`) with SLaKE-only default behavior.
-- Validation: Python syntax check passed for `data_preprocessing/preprocess_vqa_datasets.py`.
+- Validation: Python syntax check passed for `data_preprocessing/preprocess_vqa_datasets.py`.### 2026-04-15
+- Files changed: `scripts/slurm/preprocess_slake.sbatch`, `scripts/slurm/submit_and_log.sh`, `logs/.gitkeep`, `logs/runs/.gitkeep`
+- Summary: Added a reusable Slurm preprocessing job script for SLaKE and a submission helper that records job id, commit hash, and run notes under `logs/`.
