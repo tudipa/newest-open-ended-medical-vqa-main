@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 set -euo pipefail
 
 SCRIPT_PATH="${1:-scripts/slurm/preprocess_slake.sbatch}"
@@ -8,7 +8,7 @@ if [[ ! -f "$SCRIPT_PATH" ]]; then
   exit 1
 fi
 
-mkdir -p logs/runs
+mkdir -p logs/slurm logs/runs
 LOG_FILE="logs/slurm_submissions.log"
 RUN_NOTE="logs/runs/preprocess_slake_$(date +%F_%H%M%S).md"
 
@@ -27,8 +27,8 @@ NOW=$(date '+%Y-%m-%d %H:%M:%S %Z')
   echo "- Job ID: $JOB_ID"
   echo "- Script: $SCRIPT_PATH"
   echo "- Git commit: $COMMIT_HASH"
-  echo "- Stdout: slake_preprocess_${JOB_ID}.out"
-  echo "- Stderr: slake_preprocess_${JOB_ID}.err"
+  echo "- Stdout: logs/slurm/slake_preprocess_${JOB_ID}.out"
+  echo "- Stderr: logs/slurm/slake_preprocess_${JOB_ID}.err"
 } > "$RUN_NOTE"
 
 echo "Submitted job $JOB_ID"
