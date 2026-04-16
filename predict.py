@@ -29,6 +29,13 @@ def _dataset_raw_index(local_idx, indices):
     return indices[local_idx]
 
 
+
+def _get_gold_answer(base_dataset, raw_idx):
+    if hasattr(base_dataset, "answers_raw"):
+        return base_dataset.answers_raw[raw_idx]
+    if hasattr(base_dataset, "answers"):
+        return base_dataset.answers[raw_idx]
+    raise AttributeError("Dataset has neither answers_raw nor answers")
 def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Evaluation device={device}")
@@ -80,7 +87,7 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                         temperature=1,
                     )[0]
 
-            gold_answer = base_dataset.answers_raw[raw_idx]
+            gold_answer = _get_gold_answer(base_dataset, raw_idx)
 
             if out_text.lower() == gold_answer.lower():
                 acc += 1
