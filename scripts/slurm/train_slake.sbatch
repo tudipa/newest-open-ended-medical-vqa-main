@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=slake_train
-#SBATCH --partition=gpu
+#SBATCH --nodelist=g20-2gpu-1
 #SBATCH --gres=gpu:1
 #SBATCH --exclude=g16-2gpu-1
 #SBATCH --cpus-per-task=6
