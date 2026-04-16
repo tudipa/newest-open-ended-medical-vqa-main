@@ -11,17 +11,10 @@
 
 set -eo pipefail
 
-# Robust conda initialization for non-interactive Slurm shells
-if [ -f /opt/miniconda3/etc/profile.d/conda.sh ]; then
-  source /opt/miniconda3/etc/profile.d/conda.sh
-elif [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-  source "$HOME/miniconda3/etc/profile.d/conda.sh"
-else
-  echo "ERROR: conda.sh not found" >&2
-  exit 127
-fi
-
-conda activate open1 || { echo "ERROR: conda activate failed" >&2; exit 127; }
+source ~/.bashrc
+set +u
+conda activate open1
+set -u
 
 cd /home/s225507154/projects/newest-open-ended-medical-vqa-main
 mkdir -p logs/slurm
