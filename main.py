@@ -51,7 +51,9 @@ if __name__ == "__main__":
         f"gpttype_{args.model_type.replace('/', '')}_setting_{args.setting}_dataset_{args.dataset}"
     )
 
-    args.out_dir = os.path.join("../checkpoints", suffix)
+    # Respect explicit --out_dir from CLI/Slurm; only build default path when not provided.
+    if args.out_dir == "./checkpoints":
+        args.out_dir = os.path.join("../checkpoints", suffix)
     dataset_root = os.path.join(args.dataset_path, args.dataset)
 
     train_dataset = medvqaDataset(
