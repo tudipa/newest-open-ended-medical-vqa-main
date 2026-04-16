@@ -3,7 +3,7 @@ import torch
 from predict import eval_gpt_open_ended
 from models import VQAmedModel, VQAmedModel_abl
 from data_preprocessing.dataloader import medvqaDataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import argparse
 import numpy as np
 import random
@@ -34,6 +34,9 @@ def parse_argument():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--iters_to_accumulate", type=int, default=4)
     parser.add_argument("--validation_step", type=int, default=1000)
+    parser.add_argument("--max_train_samples", type=int, default=0)
+    parser.add_argument("--max_val_samples", type=int, default=0)
+    parser.add_argument("--max_test_samples", type=int, default=0)
     parser.add_argument("--out_dir", default="./checkpoints")
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--eval", dest="eval", action="store_true")
@@ -42,6 +45,13 @@ def parse_argument():
     args = parser.parse_args()
     set_random_seeds(args.seed)
     return args
+
+
+def maybe_subset(dataset, max_samples):
+    if max_samples is None or max_samples <= 0:
+        return dataset
+    subset_size = min(max_samples, len(dataset))
+    return Subset(dataset, list(range(subset_size)))
 
 
 if __name__ == "__main__":
@@ -75,6 +85,13 @@ if __name__ == "__main__":
         model_type=args.model_type,
         like_test=True,
     )
+
+    train_dataset = maybe_subset(train_dataset, args.max_train_samples)
+    val_dataset = maybe_subset(val_dataset, args.max_val_samples)
+    test_dataset = maybe_subset(test_dataset, args.max_test_samples)
+
+    if args.verbose:
+        print(f"Dataset sizes => train: {len(train_dataset)}, val: {len(val_dataset)}, test: {len(test_dataset)}")
 
     if args.ablation != "none":
         model = VQAmedModel_abl(

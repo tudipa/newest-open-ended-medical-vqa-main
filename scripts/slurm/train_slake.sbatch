@@ -98,6 +98,8 @@ ELAPSED_S=$((ELAPSED_SEC % 60))
   echo "run_end=$END_HUMAN"
   echo "elapsed_seconds=$ELAPSED_SEC"
   echo "elapsed_hms=${ELAPSED_H}h ${ELAPSED_M}m ${ELAPSED_S}s"
-  echo "elapsed_minutes=$(awk \"BEGIN {printf \\\"%.2f\\\", $ELAPSED_SEC/60}\")"
-  echo "elapsed_hours=$(awk \"BEGIN {printf \\\"%.2f\\\", $ELAPSED_SEC/3600}\")"
+  ELAPSED_MIN=$(awk -v s="$ELAPSED_SEC" 'BEGIN {printf "%.2f", s/60}')
+  echo "elapsed_minutes=$ELAPSED_MIN"
+  ELAPSED_HOURS=$(awk -v s="$ELAPSED_SEC" 'BEGIN {printf "%.2f", s/3600}')
+  echo "elapsed_hours=$ELAPSED_HOURS"
 } >> "$CONFIG_FILE"
