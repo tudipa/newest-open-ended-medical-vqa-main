@@ -129,8 +129,6 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
         if avg_val_loss < best_valid_loss:
             best_valid_loss = avg_val_loss
             torch.save(model.state_dict(), os.path.join(args.out_dir, "open_ended_latest.pt"))
-
-        scheduler.step()
         elapsed_time = time.time() - start_time
 
         if accelerator.is_main_process:

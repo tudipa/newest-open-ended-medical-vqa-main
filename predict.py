@@ -1,9 +1,11 @@
 import collections
+import re
+import string
 from contextlib import nullcontext
 
 import torch
 from evaluate import load
-from nltk.translate.bleu_score import sentence_bleu
+from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from tqdm import tqdm
 from transformers import GPT2Tokenizer
 
@@ -13,7 +15,7 @@ from utils import generate_beam
 def _unwrap_subset(dataset):
     """Return base dataset and index mapping when dataset is a torch.utils.data.Subset."""
     indices = None
-    while hasattr(dataset, "dataset") and hasattr(dataset, "indices"):
+    while hasattr(dataset, 'dataset') and hasattr(dataset, 'indices'):
         current_indices = list(dataset.indices)
         if indices is None:
             indices = current_indices
@@ -29,24 +31,35 @@ def _dataset_raw_index(local_idx, indices):
     return indices[local_idx]
 
 
-
 def _get_gold_answer(base_dataset, raw_idx):
-    if hasattr(base_dataset, "answers_raw"):
+    if hasattr(base_dataset, 'answers_raw'):
         return base_dataset.answers_raw[raw_idx]
-    if hasattr(base_dataset, "answers"):
+    if hasattr(base_dataset, 'answers'):
         return base_dataset.answers[raw_idx]
-    raise AttributeError("Dataset has neither answers_raw nor answers")
-def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Evaluation device={device}")
+    raise AttributeError('Dataset has neither answers_raw nor answers')
+
+
+def normalize_answer(text):
+    text = str(text).lower().strip()
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    text = re.sub(r'\b(a|an|the)\b', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=False):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f'Evaluation device={device}')
 
     model.eval()
     model = model.to(device)
 
     base_dataset, subset_indices = _unwrap_subset(dataset)
 
-    bert_score = load("bertscore")
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    bert_score = load('bertscore')
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    bleu_smoothing = SmoothingFunction().method1
+
     bleu_avg1 = 0.0
     bert_avg3 = 0.0
     f1_avg = 0.0
@@ -57,7 +70,7 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     c_yn = 1e-9
 
     with tqdm(total=len(dataset)) as epoch_pbar:
-        epoch_pbar.set_description("Testing")
+        epoch_pbar.set_description('Testing')
         for item in range(len(dataset)):
             raw_idx = _dataset_raw_index(item, subset_indices)
 
@@ -67,15 +80,16 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             mask = mask.to(device)
 
             amp_ctx = (
-                torch.amp.autocast(device_type="cuda", dtype=torch.float16)
-                if device.type == "cuda"
+                torch.amp.autocast(device_type='cuda', dtype=torch.float16)
+                if device.type == 'cuda'
                 else nullcontext()
             )
+
             with amp_ctx:
                 with torch.no_grad():
                     embed = model.generate(prefix, labels, tokens, mask, q_len).view(1, tokens.size(0), -1)
                     if print_vis_token_meaning:
-                        prefix_projections = embed[:, q_len : q_len + model.prefix_length, :]
+                        prefix_projections = embed[:, q_len:q_len + model.prefix_length, :]
                         for i in range(prefix_projections.size(1)):
                             print_nearest_text_token(prefix_projections[0, i], model)
 
@@ -89,40 +103,49 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
 
             gold_answer = _get_gold_answer(base_dataset, raw_idx)
 
-            if out_text.lower() == gold_answer.lower():
+            pred_norm = normalize_answer(out_text)
+            gold_norm = normalize_answer(gold_answer)
+
+            if pred_norm == gold_norm:
                 acc += 1
 
-            if gold_answer.lower() in ("yes", "no"):
-                if out_text.lower() == gold_answer.lower():
+            if gold_norm in ('yes', 'no'):
+                if pred_norm == gold_norm:
                     acc_yn += 1
                 c_yn += 1
             else:
-                if out_text.lower() == gold_answer.lower():
+                if pred_norm == gold_norm:
                     acc_oe += 1
                 c_oe += 1
 
             reference = [str(gold_answer)]
             candidate = [out_text]
 
-            bleu_1 = sentence_bleu(reference[0], candidate[0], weights=(1, 0, 0, 0))
+            ref_tokens = gold_norm.split()
+            cand_tokens = pred_norm.split()
+            if len(cand_tokens) == 0:
+                bleu_1 = 0.0
+            else:
+                bleu_1 = sentence_bleu([ref_tokens], cand_tokens, weights=(1, 0, 0, 0), smoothing_function=bleu_smoothing)
+
             a = bert_score.compute(
                 references=reference,
                 predictions=candidate,
-                model_type="bert-base-uncased",
+                model_type='bert-base-uncased',
             )
-            bert_avg3 += a["f1"][0]
+            bert_avg3 += a['f1'][0]
 
-            f1_avg += compute_f1(tokenizer.encode(reference[0]), tokenizer.encode(candidate[0]))
+            f1_avg += compute_f1(ref_tokens, cand_tokens)
             bleu_avg1 += bleu_1
             epoch_pbar.update(1)
 
-    print("------------")
-    print("BLEU {}".format(round(bleu_avg1 / len(dataset), 3)))
-    print("BERTScore {}".format(round(bert_avg3 / len(dataset), 3)))
-    print("F1 {}".format(round(f1_avg / len(dataset), 3)))
-    print("Accuracy {}".format(round(acc / len(dataset), 3)))
-    print("Accuracy YN{}".format(round(acc_yn / c_yn, 3)))
-    print("Accuracy OE{}".format(round(acc_oe / c_oe, 3)))
+    print('------------')
+    print('BLEU {}'.format(round(bleu_avg1 / len(dataset), 3)))
+    print('BERTScore {}'.format(round(bert_avg3 / len(dataset), 3)))
+    print('F1 {}'.format(round(f1_avg / len(dataset), 3)))
+    print('Accuracy {}'.format(round(acc / len(dataset), 3)))
+    print('Accuracy YN{}'.format(round(acc_yn / c_yn, 3)))
+    print('Accuracy OE{}'.format(round(acc_oe / c_oe, 3)))
 
 
 def print_nearest_text_token(vis_token, model):
