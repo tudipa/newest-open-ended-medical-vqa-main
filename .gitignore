@@ -54,3 +54,6 @@ vqa_datasets/
 # Common ML artifacts
 wandb/
 mlruns/
+
+# Local baseline reference copy
+sonsbeek-autoencoder/
