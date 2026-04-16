@@ -1,10 +1,13 @@
-from tqdm import tqdm
-import torch
-from utils import generate_beam
-from nltk.translate.bleu_score import sentence_bleu
-from transformers import GPT2Tokenizer
-from evaluate import load
 import collections
+from contextlib import nullcontext
+
+import torch
+from evaluate import load
+from nltk.translate.bleu_score import sentence_bleu
+from tqdm import tqdm
+from transformers import GPT2Tokenizer
+
+from utils import generate_beam
 
 
 def _unwrap_subset(dataset):
@@ -27,8 +30,11 @@ def _dataset_raw_index(local_idx, indices):
 
 
 def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Evaluation device={device}")
+
     model.eval()
-    model = model.cuda()
+    model = model.to(device)
 
     base_dataset, subset_indices = _unwrap_subset(dataset)
 
@@ -49,11 +55,16 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             raw_idx = _dataset_raw_index(item, subset_indices)
 
             prefix, labels, tokens, mask, q_len = dataset[item]
-            prefix = prefix.type(torch.float32).cuda()
-            tokens = tokens.type(torch.long).cuda()
-            mask = mask.cuda()
+            prefix = prefix.type(torch.float32).to(device)
+            tokens = tokens.type(torch.long).to(device)
+            mask = mask.to(device)
 
-            with torch.amp.autocast("cuda", dtype=torch.float16):
+            amp_ctx = (
+                torch.amp.autocast(device_type="cuda", dtype=torch.float16)
+                if device.type == "cuda"
+                else nullcontext()
+            )
+            with amp_ctx:
                 with torch.no_grad():
                     embed = model.generate(prefix, labels, tokens, mask, q_len).view(1, tokens.size(0), -1)
                     if print_vis_token_meaning:
