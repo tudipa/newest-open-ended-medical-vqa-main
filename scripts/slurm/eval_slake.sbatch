@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #SBATCH --job-name=slake_eval
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
