@@ -33,6 +33,9 @@ PREFIX_LENGTH="${PREFIX_LENGTH:-8}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 EPOCHS="${EPOCHS:-30}"
 LR="${LR:-5e-3}"
+MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-0}"
+MAX_VAL_SAMPLES="${MAX_VAL_SAMPLES:-0}"
+MAX_TEST_SAMPLES="${MAX_TEST_SAMPLES:-0}"
 
 set -- \
   --dataset "$DATASET" \
@@ -43,6 +46,9 @@ set -- \
   --batch_size "$BATCH_SIZE" \
   --epochs "$EPOCHS" \
   --lr "$LR" \
+  --max_train_samples "$MAX_TRAIN_SAMPLES" \
+  --max_val_samples "$MAX_VAL_SAMPLES" \
+  --max_test_samples "$MAX_TEST_SAMPLES" \
   --out_dir "$RUN_DIR"
 
 # Persist full run metadata for reproducibility
