@@ -1,13 +1,13 @@
-import torch
-from tqdm import tqdm
+import csv
 import os
 import time
-import torch.nn.functional as nnf
-import csv
 
-from transformers import get_linear_schedule_with_warmup
-from torch.optim import AdamW
+import torch
+import torch.nn.functional as nnf
 from accelerate import Accelerator
+from torch.optim import AdamW
+from tqdm import tqdm
+from transformers import get_linear_schedule_with_warmup
 
 
 def pytorch_model_run(train_loader, valid_loader, model_obj, args):
@@ -34,9 +34,17 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
     valid_loader = accelerator.prepare(valid_loader)
 
     epoch_log_path = os.path.join(args.out_dir, "epoch_log.csv")
-    with open(epoch_log_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["epoch", "train_loss", "val_loss", "epoch_seconds", "epoch_minutes", "epoch_hours"])
+    if accelerator.is_main_process:
+        with open(epoch_log_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "epoch",
+                "train_loss",
+                "val_loss",
+                "epoch_seconds",
+                "epoch_minutes",
+                "epoch_hours",
+            ])
 
     best_valid_loss = float("inf")
     n_epochs = args.epochs
@@ -124,6 +132,19 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
 
         scheduler.step()
         elapsed_time = time.time() - start_time
+
+        if accelerator.is_main_process:
+            with open(epoch_log_path, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    epoch + 1,
+                    f"{avg_loss:.10f}",
+                    f"{avg_val_loss:.10f}",
+                    f"{elapsed_time:.4f}",
+                    f"{elapsed_time / 60:.4f}",
+                    f"{elapsed_time / 3600:.4f}",
+                ])
+
         print(
             "VAL epoch {}/{} \t loss={:.4f} \t val_loss={:.4f} \t time={:.2f}s".format(
                 epoch + 1, n_epochs, avg_loss, avg_val_loss, elapsed_time
