@@ -3,7 +3,7 @@
 #SBATCH --nodelist=g20-2gpu-1
 #SBATCH --gres=gpu:1
 #SBATCH --exclude=g16-2gpu-1
-#SBATCH --cpus-per-task=6
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=48G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/slake_train_%j.out
