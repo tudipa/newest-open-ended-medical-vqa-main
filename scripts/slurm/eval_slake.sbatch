@@ -19,6 +19,11 @@ set -u
 cd /home/s225507154/projects/newest-open-ended-medical-vqa-main
 mkdir -p logs/slurm
 
+START_EPOCH=$(date +%s)
+START_HUMAN=$(date '+%a %b %d %I:%M:%S %p %Z %Y')
+echo "=== Job started: $START_HUMAN ==="
+echo "=== Host: $(hostname) ==="
+
 DATASET="${DATASET:-slake}"
 DATASET_PATH="${DATASET_PATH:-/home/s225507154/datasets/}"
 MODEL_TYPE="${MODEL_TYPE:-gpt2-xl}"
@@ -45,4 +50,20 @@ set -- \
   --verbose
 
 echo "Evaluation args: $*"
+
+set +e
 python main.py "$@"
+RC=$?
+set -e
+
+END_EPOCH=$(date +%s)
+END_HUMAN=$(date '+%a %b %d %I:%M:%S %p %Z %Y')
+ELAPSED=$((END_EPOCH - START_EPOCH))
+ELAPSED_M=$((ELAPSED / 60))
+ELAPSED_S=$((ELAPSED % 60))
+ELAPSED_H=$((ELAPSED / 3600))
+
+echo "=== Job finished: $END_HUMAN ==="
+echo "=== Elapsed: ${ELAPSED}s (${ELAPSED_H}h ${ELAPSED_M}m ${ELAPSED_S}s) ==="
+
+exit $RC

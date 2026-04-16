@@ -3,6 +3,7 @@ import re
 import string
 from contextlib import nullcontext
 
+import numpy as np
 import torch
 from evaluate import load
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
@@ -39,18 +40,22 @@ def _get_gold_answer(base_dataset, raw_idx):
     raise AttributeError('Dataset has neither answers_raw nor answers')
 
 
-def normalize_answer(text):
-    """Simple normalizer used by strict exact metrics."""
-    text = str(text).lower().strip()
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+def normalize_answer(s: str) -> str:
+    if s is None:
+        return ''
+    s = str(s).lower()
+    s = s.replace('<|endoftext|>', ' ')
+    s = s.replace('</s>', ' ')
+    s = s.replace('<pad>', ' ')
+    s = s.translate(str.maketrans('', '', string.punctuation))
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
 
 
 def normalize_text(s: str) -> str:
-    """Baseline-style normalizer for soft evaluation and debugging."""
     if s is None:
-        return ""
+        return ''
+
     s = str(s).lower().strip()
     s = re.sub(r'^(answer\s*:?\s*)', '', s)
     s = re.sub(r'^(ans\s*:?\s*)', '', s)
@@ -70,7 +75,6 @@ def yes_no_value(s: str):
 
 
 def soft_match(pred: str, gold: str) -> bool:
-    """Baseline-style soft match: exact OR containment after normalization."""
     p = normalize_text(pred)
     g = normalize_text(gold)
     if not p or not g:
@@ -86,10 +90,12 @@ def evaluate_predictions(pred_texts, gold_texts):
     n = len(pred_texts)
     em = 0
     soft = 0
+
     yn_total = 0
     yn_em = 0
+
     oe_total = 0
-    oe_soft = 0
+    oe_em = 0
 
     for pred, gold in zip(pred_texts, gold_texts):
         pred_n = normalize_text(pred)
@@ -100,29 +106,31 @@ def evaluate_predictions(pred_texts, gold_texts):
         if soft_match(pred, gold):
             soft += 1
 
-        if yes_no_value(gold) is not None:
+        gold_yn = yes_no_value(gold)
+        if gold_yn is not None:
             yn_total += 1
-            if yes_no_value(pred) == yes_no_value(gold):
+            if yes_no_value(pred) == gold_yn:
                 yn_em += 1
         else:
             oe_total += 1
             if soft_match(pred, gold):
-                oe_soft += 1
+                oe_em += 1
 
     return {
         'N': n,
         'exact_match': em / n if n else 0.0,
         'soft_match': soft / n if n else 0.0,
         'yn_exact': yn_em / yn_total if yn_total else 0.0,
-        'oe_soft': oe_soft / oe_total if oe_total else 0.0,
+        'oe_soft': oe_em / oe_total if oe_total else 0.0,
     }
 
 
-def debug_mismatches(pred_texts, gold_texts, k=10):
+def debug_mismatches(pred_texts, gold_texts, k=20):
     shown = 0
     for i, (pred, gold) in enumerate(zip(pred_texts, gold_texts)):
         pred_n = normalize_text(pred)
         gold_n = normalize_text(gold)
+
         ok_em = pred_n == gold_n
         ok_soft = soft_match(pred, gold)
 
@@ -139,9 +147,13 @@ def debug_mismatches(pred_texts, gold_texts, k=10):
                 break
 
 
-def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=False):
+def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Evaluation device={device}')
+
+    pred_texts = []
+    gold_texts = []
+    smooth = SmoothingFunction().method1
 
     model.eval()
     model = model.to(device)
@@ -149,20 +161,15 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=False):
     base_dataset, subset_indices = _unwrap_subset(dataset)
 
     bert_score = load('bertscore')
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    bleu_smoothing = SmoothingFunction().method1
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
 
     bleu_avg1 = 0.0
-    bert_avg3 = 0.0
     f1_avg = 0.0
     acc = 0.0
     acc_oe = 0.0
     acc_yn = 0.0
     c_oe = 1e-9
     c_yn = 1e-9
-
-    pred_texts = []
-    gold_texts = []
 
     with tqdm(total=len(dataset)) as epoch_pbar:
         epoch_pbar.set_description('Testing')
@@ -200,52 +207,56 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=False):
             pred_texts.append(out_text)
             gold_texts.append(str(gold_answer))
 
-            pred_norm = normalize_answer(out_text)
-            gold_norm = normalize_answer(gold_answer)
+            pred = normalize_answer(out_text)
+            gold = normalize_answer(gold_answer)
 
-            if pred_norm == gold_norm:
+            if pred == gold:
                 acc += 1
 
-            if gold_norm in ('yes', 'no'):
-                if pred_norm == gold_norm:
+            if gold in {'yes', 'no'}:
+                if pred == gold:
                     acc_yn += 1
                 c_yn += 1
             else:
-                if pred_norm == gold_norm:
+                if pred == gold:
                     acc_oe += 1
                 c_oe += 1
 
-            ref_tokens = normalize_text(gold_answer).split()
-            cand_tokens = normalize_text(out_text).split()
-            if len(cand_tokens) == 0:
-                bleu_1 = 0.0
-            else:
-                bleu_1 = sentence_bleu([ref_tokens], cand_tokens, weights=(1, 0, 0, 0), smoothing_function=bleu_smoothing)
+            ref_text = str(gold_answer)
+            pred_text = out_text
 
-            a = bert_score.compute(
-                references=[str(gold_answer)],
-                predictions=[out_text],
-                model_type='bert-base-uncased',
-            )
-            bert_avg3 += a['f1'][0]
+            ref_tokens = normalize_text(ref_text).split()
+            cand_tokens = normalize_text(pred_text).split()
 
-            f1_avg += compute_f1(tokenizer.encode(str(gold_answer)), tokenizer.encode(out_text))
+            bleu_1 = sentence_bleu(
+                [ref_tokens],
+                cand_tokens,
+                weights=(1, 0, 0, 0),
+                smoothing_function=smooth,
+            ) if len(cand_tokens) > 0 else 0.0
+
+            f1_avg += compute_f1(tokenizer.encode(ref_text), tokenizer.encode(pred_text))
             bleu_avg1 += bleu_1
             epoch_pbar.update(1)
 
+    a = bert_score.compute(
+        references=gold_texts,
+        predictions=pred_texts,
+        model_type='bert-base-uncased',
+    )
+    bert_f1 = float(np.mean(a['f1']))
+
     results = evaluate_predictions(pred_texts, gold_texts)
+    print('NORMALISED RESULTS:', results)
+    debug_mismatches(pred_texts, gold_texts, k=10)
 
     print('------------')
     print('BLEU {}'.format(round(bleu_avg1 / len(dataset), 3)))
-    print('BERTScore {}'.format(round(bert_avg3 / len(dataset), 3)))
+    print('BERTScore {}'.format(round(bert_f1, 3)))
     print('F1 {}'.format(round(f1_avg / len(dataset), 3)))
     print('Accuracy {}'.format(round(acc / len(dataset), 3)))
     print('Accuracy YN{}'.format(round(acc_yn / c_yn, 3)))
     print('Accuracy OE{}'.format(round(acc_oe / c_oe, 3)))
-    print('NORMALISED RESULTS: {}'.format({k: round(v, 3) if isinstance(v, float) else v for k, v in results.items()}))
-
-    if getattr(args, 'verbose', False):
-        debug_mismatches(pred_texts, gold_texts, k=10)
 
 
 def print_nearest_text_token(vis_token, model):
