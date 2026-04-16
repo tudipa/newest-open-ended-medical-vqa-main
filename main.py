@@ -117,6 +117,18 @@ if __name__ == "__main__":
         model = pytorch_model_run(train_dataloader, val_dataloader, model, args)
     else:
         checkpoint = os.path.join(args.out_dir, "open_ended_latest.pt")
+        print("Evaluation Config")
+        print(f"dataset={args.dataset}")
+        print(f"dataset_root={dataset_root}")
+        print(f"model_type={args.model_type}")
+        print(f"setting={args.setting}")
+        print(f"prefix_length={args.prefix_length}")
+        print(f"batch_size={args.batch_size}")
+        print(f"max_test_samples={args.max_test_samples}")
+        print(f"test_size={len(test_dataset)}")
+        print(f"out_dir={args.out_dir}")
+        print(f"checkpoint={checkpoint}")
+
         if args.verbose:
             print(f">> Loading pre-trained model {checkpoint}!")
         if os.path.exists(checkpoint):
