@@ -57,3 +57,4 @@ mlruns/
 
 # Local baseline reference copy
 sonsbeek-autoencoder/
+.tmp/
