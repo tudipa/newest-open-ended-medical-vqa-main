@@ -3,7 +3,6 @@ import re
 import string
 from contextlib import nullcontext
 
-import numpy as np
 import torch
 from evaluate import load
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
@@ -162,8 +161,21 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
 
     bert_score = load('bertscore')
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
+    tokenizer_legacy = GPT2Tokenizer.from_pretrained('gpt2')
 
+    # Original metrics (first-commit style)
+    orig_bleu_avg1 = 0.0
+    orig_bert_avg3 = 0.0
+    orig_f1_avg = 0.0
+    orig_acc = 0.0
+    orig_acc_oe = 0.0
+    orig_acc_yn = 0.0
+    orig_c_oe = 1e-9
+    orig_c_yn = 1e-9
+
+    # Normalized/soft diagnostics
     bleu_avg1 = 0.0
+    bert_avg3 = 0.0
     f1_avg = 0.0
     acc = 0.0
     acc_oe = 0.0
@@ -207,6 +219,34 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             pred_texts.append(out_text)
             gold_texts.append(str(gold_answer))
 
+            # Original metrics (first-commit style)
+            ref_text = str(gold_answer)
+            pred_text = out_text
+            reference = [ref_text]
+            candidate = [pred_text]
+
+            if pred_text.lower() == ref_text.lower():
+                orig_acc += 1
+            if ref_text.lower() == 'yes' or ref_text.lower() == 'no':
+                if pred_text.lower() == ref_text.lower():
+                    orig_acc_yn += 1
+                orig_c_yn += 1
+            else:
+                if pred_text.lower() == ref_text.lower():
+                    orig_acc_oe += 1
+                orig_c_oe += 1
+
+            orig_bleu_1 = sentence_bleu(reference[0], candidate[0], weights=(1, 0, 0, 0))
+            a_orig = bert_score.compute(
+                references=reference,
+                predictions=candidate,
+                model_type='bert-base-uncased',
+            )
+            orig_bert_avg3 += a_orig['f1'][0]
+            orig_f1_avg += compute_f1(tokenizer_legacy.encode(reference[0]), tokenizer_legacy.encode(candidate[0]))
+            orig_bleu_avg1 += orig_bleu_1
+
+            # Normalized/soft diagnostics
             pred = normalize_answer(out_text)
             gold = normalize_answer(gold_answer)
 
@@ -222,9 +262,6 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                     acc_oe += 1
                 c_oe += 1
 
-            ref_text = str(gold_answer)
-            pred_text = out_text
-
             ref_tokens = normalize_text(ref_text).split()
             cand_tokens = normalize_text(pred_text).split()
 
@@ -235,24 +272,34 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                 smoothing_function=smooth,
             ) if len(cand_tokens) > 0 else 0.0
 
+            a = bert_score.compute(
+                references=[ref_text],
+                predictions=[pred_text],
+                model_type='bert-base-uncased',
+            )
+            bert_avg3 += a['f1'][0]
+
             f1_avg += compute_f1(tokenizer.encode(ref_text), tokenizer.encode(pred_text))
             bleu_avg1 += bleu_1
             epoch_pbar.update(1)
-
-    a = bert_score.compute(
-        references=gold_texts,
-        predictions=pred_texts,
-        model_type='bert-base-uncased',
-    )
-    bert_f1 = float(np.mean(a['f1']))
 
     results = evaluate_predictions(pred_texts, gold_texts)
     print('NORMALISED RESULTS:', results)
     debug_mismatches(pred_texts, gold_texts, k=10)
 
     print('------------')
+    print('ORIGINAL METRICS (first-commit style)')
+    print('BLEU {}'.format(round(orig_bleu_avg1 / len(dataset), 3)))
+    print('BERTScore {}'.format(round(orig_bert_avg3 / len(dataset), 3)))
+    print('F1 {}'.format(round(orig_f1_avg / len(dataset), 3)))
+    print('Accuracy {}'.format(round(orig_acc / len(dataset), 3)))
+    print('Accuracy YN{}'.format(round(orig_acc_yn / orig_c_yn, 3)))
+    print('Accuracy OE{}'.format(round(orig_acc_oe / orig_c_oe, 3)))
+
+    print('------------')
+    print('NORMALIZED/SOFT DIAGNOSTICS')
     print('BLEU {}'.format(round(bleu_avg1 / len(dataset), 3)))
-    print('BERTScore {}'.format(round(bert_f1, 3)))
+    print('BERTScore {}'.format(round(bert_avg3 / len(dataset), 3)))
     print('F1 {}'.format(round(f1_avg / len(dataset), 3)))
     print('Accuracy {}'.format(round(acc / len(dataset), 3)))
     print('Accuracy YN{}'.format(round(acc_yn / c_yn, 3)))

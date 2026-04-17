@@ -47,6 +47,7 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
             ])
 
     best_valid_loss = float("inf")
+    counter = 0
     n_epochs = args.epochs
     accelerator.wait_for_everyone()
 
@@ -129,6 +130,7 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
         if avg_val_loss < best_valid_loss:
             best_valid_loss = avg_val_loss
             torch.save(model.state_dict(), os.path.join(args.out_dir, "open_ended_latest.pt"))
+        scheduler.step()
         elapsed_time = time.time() - start_time
 
         if accelerator.is_main_process:
@@ -148,5 +150,10 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                 epoch + 1, n_epochs, avg_loss, avg_val_loss, elapsed_time
             )
         )
+
+        if avg_val_loss > avg_loss:
+            counter += 1
+        if counter == 5:
+            break
 
     return model
