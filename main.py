@@ -116,7 +116,9 @@ if __name__ == "__main__":
     if not args.eval:
         model = pytorch_model_run(train_dataloader, val_dataloader, model, args)
     else:
-        checkpoint = os.path.join(args.out_dir, "open_ended_latest.pt")
+        checkpoint = args.checkpoint if args.checkpoint else os.path.join(args.out_dir, "open_ended_best_val.pt")
+        if not os.path.exists(checkpoint):
+            checkpoint = os.path.join(args.out_dir, "open_ended_latest.pt")
         print("Evaluation Config")
         print(f"dataset={args.dataset}")
         print(f"dataset_root={dataset_root}")

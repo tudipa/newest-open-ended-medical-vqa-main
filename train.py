@@ -11,7 +11,6 @@ from transformers import get_linear_schedule_with_warmup
 
 
 def pytorch_model_run(train_loader, valid_loader, model_obj, args):
-    # using accelerator
     accelerator = Accelerator()
     device = accelerator.device
 
@@ -27,7 +26,6 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
         num_training_steps=args.epochs * len(train_loader),
     )
 
-    # introduce all components to accelerate library
     model, optimizer, train_loader, scheduler = accelerator.prepare(
         model, optimizer, train_loader, scheduler
     )
@@ -41,13 +39,13 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                 "epoch",
                 "train_loss",
                 "val_loss",
+                "saved_best_val",
                 "epoch_seconds",
                 "epoch_minutes",
                 "epoch_hours",
             ])
 
     best_valid_loss = float("inf")
-    counter = 0
     n_epochs = args.epochs
     accelerator.wait_for_everyone()
 
@@ -83,6 +81,7 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
 
                     accelerator.backward(loss)
                     optimizer.step()
+                    # Single scheduler step per optimizer step (standard for this scheduler).
                     scheduler.step()
                     optimizer.zero_grad()
 
@@ -127,10 +126,14 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                 epoch_pbar.set_description(desc)
                 epoch_pbar.update(prefix.shape[0])
 
+        saved_best = 0
+        # Always save latest checkpoint for reproducibility.
+        torch.save(model.state_dict(), os.path.join(args.out_dir, "open_ended_latest.pt"))
         if avg_val_loss < best_valid_loss:
             best_valid_loss = avg_val_loss
-            torch.save(model.state_dict(), os.path.join(args.out_dir, "open_ended_latest.pt"))
-        scheduler.step()
+            saved_best = 1
+            torch.save(model.state_dict(), os.path.join(args.out_dir, "open_ended_best_val.pt"))
+
         elapsed_time = time.time() - start_time
 
         if accelerator.is_main_process:
@@ -140,6 +143,7 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                     epoch + 1,
                     f"{avg_loss:.10f}",
                     f"{avg_val_loss:.10f}",
+                    saved_best,
                     f"{elapsed_time:.4f}",
                     f"{elapsed_time / 60:.4f}",
                     f"{elapsed_time / 3600:.4f}",
@@ -150,10 +154,5 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                 epoch + 1, n_epochs, avg_loss, avg_val_loss, elapsed_time
             )
         )
-
-        if avg_val_loss > avg_loss:
-            counter += 1
-        if counter == 5:
-            break
 
     return model
