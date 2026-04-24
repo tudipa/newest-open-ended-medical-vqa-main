@@ -77,12 +77,13 @@ class VQAmedModel(nn.Module):
                 param.requires_grad = False
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpttype)
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
+        mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         if mapping_type == "MLP":
             self.clip_project = MLP((
                     prefix_size,
                     (self.gpt_embedding_size * prefix_length) // 2,
                     self.gpt_embedding_size * prefix_length,
-                    self.gpt_embedding_size * prefix_length))
+                    self.gpt_embedding_size * prefix_length), dropout=mlp_dropout)
         elif mapping_type == "Transformer":
             self.clip_project = TransformerMapper(
                 prefix_size,
@@ -155,13 +156,14 @@ class VQAmedModel_abl(nn.Module):
                 param.requires_grad = False
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpttype)
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
+        mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         # for the replace_visual ablation study we replace the visual tokens with learnable parameters 
         self.nv_tokens = torch.nn.Parameter(torch.randn(args.batch_size,prefix_length,self.gpt_embedding_size),requires_grad=True).cuda()
         if mapping_type == "MLP":
             self.clip_project = MLP((prefix_size,
                     (self.gpt_embedding_size * prefix_length) // 2,
                     self.gpt_embedding_size * prefix_length,
-                    self.gpt_embedding_size * prefix_length))
+                    self.gpt_embedding_size * prefix_length), dropout=mlp_dropout)
         elif mapping_type == "Transformer":
             self.clip_project = TransformerMapper(
                 prefix_size,
