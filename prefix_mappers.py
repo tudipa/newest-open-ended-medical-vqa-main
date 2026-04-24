@@ -14,7 +14,7 @@ class MLP(nn.Module):
         for i in range(len(sizes) - 1):
             layers.append(nn.Linear(sizes[i], sizes[i + 1], bias=bias))
             if i < len(sizes) - 2:
-                layers.append(nn.Dropout(p=0.5))
+                layers.append(nn.Dropout(p=0.1))
                 layers.append(act())
         self.model = nn.Sequential(*layers)
 
