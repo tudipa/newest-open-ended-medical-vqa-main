@@ -57,4 +57,5 @@ mlruns/
 
 # Local baseline reference copy
 sonsbeek-autoencoder/
+medvqa-new-from-scratch/
 .tmp/

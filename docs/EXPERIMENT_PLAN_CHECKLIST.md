@@ -29,6 +29,8 @@
 
 ### Training
 
+remove isenglish
+
 - [] No autoencoder, lr `1e-4`, 100 epoch
   Result: checkpoint ``
 
