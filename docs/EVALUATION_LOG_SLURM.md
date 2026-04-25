@@ -1,14 +1,14 @@
-﻿# SLURM Evaluation Log Summary
+# SLURM Evaluation Log Summary
 
-Generated: 2026-04-24 21:47:39 +10:00
+Generated: 2026-04-25 17:03:58 +10:00
 
-Total eval logs scanned: 18
-Unique eval jobs recorded: 17
+Total eval logs scanned: 21
+Unique eval jobs recorded: 21
 
 ## Best Runs
 
-- Best by normalized exact match: eval job 8120, checkpoint job 8080, exact_match=0.730, BLEU=0.768, BERTScore=0.430
-- Best by BERTScore: eval job 8120, checkpoint job 8080, BERTScore=0.430, exact_match=0.730
+- Best by normalized exact match: eval job 9224, checkpoint job 9214, exact_match=0.754, BLEU=0.227, BERTScore=0.433
+- Best by BERTScore: eval job 9224, checkpoint job 9214, BERTScore=0.433, exact_match=0.754
 
 ## Records
 
@@ -31,3 +31,7 @@ Unique eval jobs recorded: 17
 | 9151 | 9120 | 1061 | 0.699 | 0.425 | 0.53 | 0.662 | 0.67 | 0.657 | 0.661639962299717 | 0.694627709707823 | ok | slake_eval_9151.out |
 | 9152 | 9127 | 1061 | 0.744 | 0.426 | 0.559 | 0.709 | 0.777 | 0.674 | 0.708765315739868 | 0.745523091423186 | ok | slake_eval_9152.out |
 | 9166 | 9153 | 1061 | 0.752 | 0.428 | 0.563 | 0.714 | 0.752 | 0.695 | 0.714420358152686 | 0.754948162111216 | ok | slake_eval_9166.out |
+| 9175 | 9173 | 1061 | 0.221 | 0.429 | 0.566 | 0.002 | 0.0 | 0.003 | 0.7134778510838832 | 0.7492931196983977 | ok | slake_eval_9175.out |
+| 9190 | 9180 | 1061 | 0.22 | 0.425 | 0.572 | 0.003 | 0.0 | 0.004 | 0.7276154571159283 | 0.760603204524034 | ok | slake_eval_9190.out |
+| 9195 | 9174 | 1061 | 0.19 | 0.391 | 0.428 | 0.0 | 0.0 | 0.0 | 0.5579641847313855 | 0.5758718190386428 | ok | slake_eval_9195.out |
+| 9224 | 9214 | 1061 | 0.227 | 0.433 | 0.594 | 0.004 | 0.0 | 0.006 | 0.7549481621112158 | 0.7907634307257304 | ok | slake_eval_9224.out |

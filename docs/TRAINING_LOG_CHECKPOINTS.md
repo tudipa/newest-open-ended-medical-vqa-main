@@ -1,7 +1,7 @@
-﻿# Training Log From Checkpoints
+# Training Log From Checkpoints
 
-Generated: 2026-04-25 13:59:46 +10:00
-Total runs: 14
+Generated: 2026-04-25 17:21:09 +10:00
+Total runs: 15
 
 | job_id | job_name | setting | model | dataset | epochs | lr | dropout | checkpoint_best | checkpoint_latest |
 |---:|:---|:---|:---|:---|---:|:---|:---|:---|:---|
@@ -19,8 +19,8 @@ Total runs: 14
 | 9173 | slake_train_5e3_30ep_after_update_dropout_to_cli_to_compare_with_8080_checkpoint | frozen | gpt2-xl | slake | 30 | 5e-3 | 0.5 | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9173/open_ended_best_val.pt | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9173/open_ended_latest.pt |
 | 9174 | slake_train_lora_5e3_30ep | lora | gpt2-xl | slake | 30 | 5e-3 | 0.5 | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9174/open_ended_best_val.pt | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9174/open_ended_latest.pt |
 | 9180 | slake_train_5e3_100ep_after_update_dropout_to_cli_to_compare_with_8080_checkpoint | frozen | gpt2-xl | slake | 100 | 5e-3 | 0.5 | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9180/open_ended_best_val.pt | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9180/open_ended_latest.pt |
+| 9214 | slake_train_lora_1e4_100ep | lora | gpt2-xl | slake | 100 | 1e-4 | 0.5 | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9214/open_ended_best_val.pt | /home/s225507154/checkpoints/newest-open-ended-medical-vqa-main/job_9214/open_ended_latest.pt |
 
 ## Notes
-- Source files: `checkpoints/run_config_*.txt`.
-- Checkpoint paths are recorded from `--out_dir` in `train_args`.
+- Source files: `checkpoints/run_config_*.txt` and local `logs/slurm/slake_train_*.out` when run_config is unavailable.
 - Full parameter string is in the CSV column `train_args`.
