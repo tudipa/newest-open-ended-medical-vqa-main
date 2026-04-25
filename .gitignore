@@ -60,3 +60,5 @@ mlruns/
 sonsbeek-autoencoder/
 medvqa-new-from-scratch/
 .tmp/
+logs/slurm/
+logs/runs/
