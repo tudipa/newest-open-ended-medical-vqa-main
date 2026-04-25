@@ -1,7 +1,12 @@
 import collections
+import csv
+import json
+import os
+import random
 import re
 import string
 from contextlib import nullcontext
+from datetime import datetime
 
 import torch
 from evaluate import load
@@ -149,6 +154,23 @@ def debug_mismatches(pred_texts, gold_texts, k=20):
 def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Evaluation device={device}')
+    print('BERTScore Config')
+    print('bertscore_model_type=bert-base-uncased')
+    print('bertscore_lang=en')
+    print(f'bertscore_device={device.type}')
+
+    checkpoint_path = getattr(args, 'checkpoint', None)
+    if checkpoint_path:
+        print('Checkpoint Debug')
+        print(f'checkpoint_path={checkpoint_path}')
+        if os.path.exists(checkpoint_path):
+            ckpt_bytes = os.path.getsize(checkpoint_path)
+            ckpt_mtime = datetime.fromtimestamp(os.path.getmtime(checkpoint_path)).isoformat(timespec='seconds')
+            print(f'checkpoint_size_bytes={ckpt_bytes}')
+            print(f'checkpoint_modified={ckpt_mtime}')
+
+    run_config_path = _find_run_config_file(getattr(args, 'out_dir', ''))
+    print(f'linked_run_config={run_config_path if run_config_path else "not_found"}')
 
     pred_texts = []
     gold_texts = []
@@ -182,12 +204,13 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     acc_yn = 0.0
     c_oe = 1e-9
     c_yn = 1e-9
+    per_sample_rows = []
+    bert_f1_scores = []
 
     with tqdm(total=len(dataset)) as epoch_pbar:
         epoch_pbar.set_description('Testing')
         for item in range(len(dataset)):
             raw_idx = _dataset_raw_index(item, subset_indices)
-
             prefix, labels, tokens, mask, q_len = dataset[item]
             prefix = prefix.type(torch.float32).to(device)
             tokens = tokens.type(torch.long).to(device)
@@ -216,6 +239,7 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                     )[0]
 
             gold_answer = _get_gold_answer(base_dataset, raw_idx)
+            question_text = base_dataset.questions[raw_idx] if hasattr(base_dataset, 'questions') else ''
             pred_texts.append(out_text)
             gold_texts.append(str(gold_answer))
 
@@ -237,10 +261,12 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                 orig_c_oe += 1
 
             orig_bleu_1 = sentence_bleu(reference[0], candidate[0], weights=(1, 0, 0, 0))
-            a_orig = bert_score.compute(
+            a_orig = _bertscore_compute(
+                bert_score,
                 references=reference,
                 predictions=candidate,
                 model_type='bert-base-uncased',
+                device_type=device.type,
             )
             orig_bert_avg3 += a_orig['f1'][0]
             orig_f1_avg += compute_f1(tokenizer_legacy.encode(reference[0]), tokenizer_legacy.encode(candidate[0]))
@@ -272,15 +298,36 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                 smoothing_function=smooth,
             ) if len(cand_tokens) > 0 else 0.0
 
-            a = bert_score.compute(
+            a = _bertscore_compute(
+                bert_score,
                 references=[ref_text],
                 predictions=[pred_text],
                 model_type='bert-base-uncased',
+                device_type=device.type,
             )
-            bert_avg3 += a['f1'][0]
+            sample_bert = float(a['f1'][0])
+            bert_avg3 += sample_bert
+            bert_f1_scores.append(sample_bert)
 
             f1_avg += compute_f1(tokenizer.encode(ref_text), tokenizer.encode(pred_text))
             bleu_avg1 += bleu_1
+
+            pred_norm = normalize_text(pred_text)
+            gold_norm = normalize_text(ref_text)
+            per_sample_rows.append(
+                {
+                    'idx': item,
+                    'raw_idx': raw_idx,
+                    'question': str(question_text),
+                    'prediction': str(pred_text),
+                    'reference': str(ref_text),
+                    'bertscore_f1': sample_bert,
+                    'bleu1': float(bleu_1),
+                    'exact_match': int(pred_norm == gold_norm),
+                    'soft_match': int(soft_match(pred_text, ref_text)),
+                    'yn_gold': yes_no_value(ref_text),
+                }
+            )
             epoch_pbar.update(1)
 
     results = evaluate_predictions(pred_texts, gold_texts)
@@ -305,6 +352,73 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     print('Accuracy YN{}'.format(round(acc_yn / c_yn, 3)))
     print('Accuracy OE{}'.format(round(acc_oe / c_oe, 3)))
 
+    if bert_f1_scores:
+        print('------------')
+        print('BERTScore Distribution')
+        mean_v = sum(bert_f1_scores) / len(bert_f1_scores)
+        var_v = sum((x - mean_v) ** 2 for x in bert_f1_scores) / len(bert_f1_scores)
+        std_v = var_v ** 0.5
+        print(f'count={len(bert_f1_scores)}')
+        print(f'mean={mean_v:.6f}')
+        print(f'std={std_v:.6f}')
+        print(f'min={min(bert_f1_scores):.6f}')
+        print(f'p10={_percentile(bert_f1_scores, 10):.6f}')
+        print(f'p25={_percentile(bert_f1_scores, 25):.6f}')
+        print(f'p50={_percentile(bert_f1_scores, 50):.6f}')
+        print(f'p75={_percentile(bert_f1_scores, 75):.6f}')
+        print(f'p90={_percentile(bert_f1_scores, 90):.6f}')
+        print(f'max={max(bert_f1_scores):.6f}')
+
+    if pred_texts and gold_texts:
+        print('------------')
+        print('BERTScore Sanity Checks')
+
+        rr = _bertscore_compute(
+            bert_score,
+            references=gold_texts,
+            predictions=gold_texts,
+            model_type='bert-base-uncased',
+            device_type=device.type,
+        )
+        rr_mean = sum(rr['f1']) / len(rr['f1'])
+        print(f'ref_vs_ref_mean_f1={rr_mean:.6f}')
+
+        shuffled_refs = list(gold_texts)
+        random.Random(0).shuffle(shuffled_refs)
+        pr = _bertscore_compute(
+            bert_score,
+            references=shuffled_refs,
+            predictions=pred_texts,
+            model_type='bert-base-uncased',
+            device_type=device.type,
+        )
+        pr_mean = sum(pr['f1']) / len(pr['f1'])
+        print(f'pred_vs_shuffled_ref_mean_f1={pr_mean:.6f}')
+
+        empty_preds = ['' for _ in gold_texts]
+        er = _bertscore_compute(
+            bert_score,
+            references=gold_texts,
+            predictions=empty_preds,
+            model_type='bert-base-uncased',
+            device_type=device.type,
+        )
+        er_mean = sum(er['f1']) / len(er['f1'])
+        print(f'empty_pred_baseline_mean_f1={er_mean:.6f}')
+
+    if per_sample_rows:
+        _write_eval_debug_files(args, per_sample_rows)
+
+        print('------------')
+        print('Worst Samples By BERTScore')
+        worst_rows = sorted(per_sample_rows, key=lambda x: x['bertscore_f1'])[:10]
+        for row in worst_rows:
+            print('=' * 60)
+            print(f"idx={row['idx']} raw_idx={row['raw_idx']} bert_f1={row['bertscore_f1']:.6f}")
+            print(f"Q: {row['question']}")
+            print(f"PRED: {row['prediction']}")
+            print(f"GOLD: {row['reference']}")
+
 
 def print_nearest_text_token(vis_token, model):
     """Print the nearest token in vocabulary to the given visual token."""
@@ -325,3 +439,89 @@ def compute_f1(gold_toks, pred_toks):
     recall = 1.0 * num_same / len(gold_toks)
     f1 = (2 * precision * recall) / (precision + recall)
     return f1
+
+
+def _percentile(values, pct):
+    if not values:
+        return 0.0
+    xs = sorted(values)
+    idx = int(round((pct / 100.0) * (len(xs) - 1)))
+    idx = max(0, min(idx, len(xs) - 1))
+    return float(xs[idx])
+
+
+def _bertscore_compute(metric, references, predictions, model_type, device_type):
+    try:
+        result = metric.compute(
+            references=references,
+            predictions=predictions,
+            model_type=model_type,
+            lang='en',
+            device=device_type,
+        )
+    except TypeError:
+        result = metric.compute(
+            references=references,
+            predictions=predictions,
+            model_type=model_type,
+            lang='en',
+        )
+    return result
+
+
+def _find_run_config_file(out_dir):
+    if not out_dir or not os.path.isdir(out_dir):
+        return None
+
+    candidates = []
+    for name in os.listdir(out_dir):
+        if name.startswith('run_config') and name.endswith('.txt'):
+            p = os.path.join(out_dir, name)
+            try:
+                mtime = os.path.getmtime(p)
+            except OSError:
+                continue
+            candidates.append((mtime, p))
+
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def _write_eval_debug_files(args, rows):
+    out_dir = getattr(args, 'out_dir', './checkpoints')
+    debug_dir = os.path.join(out_dir, 'eval_debug')
+    os.makedirs(debug_dir, exist_ok=True)
+
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    job_id = os.environ.get('SLURM_JOB_ID', 'local')
+    stem = f'eval_debug_{job_id}_{ts}'
+
+    jsonl_path = os.path.join(debug_dir, f'{stem}.jsonl')
+    csv_path = os.path.join(debug_dir, f'{stem}.csv')
+
+    with open(jsonl_path, 'w', encoding='utf-8') as f_jsonl:
+        for row in rows:
+            f_jsonl.write(json.dumps(row, ensure_ascii=False) + '\n')
+
+    fieldnames = [
+        'idx',
+        'raw_idx',
+        'question',
+        'prediction',
+        'reference',
+        'bertscore_f1',
+        'bleu1',
+        'exact_match',
+        'soft_match',
+        'yn_gold',
+    ]
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f_csv:
+        writer = csv.DictWriter(f_csv, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: row.get(k, '') for k in fieldnames})
+
+    print(f'eval_debug_jsonl={jsonl_path}')
+    print(f'eval_debug_csv={csv_path}')

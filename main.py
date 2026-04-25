@@ -8,6 +8,7 @@ import argparse
 import numpy as np
 import random
 import os
+from datetime import datetime
 
 
 def set_random_seeds(random_seed=0):
@@ -120,6 +121,7 @@ if __name__ == "__main__":
         checkpoint = args.checkpoint if args.checkpoint else os.path.join(args.out_dir, "open_ended_best_val.pt")
         if not os.path.exists(checkpoint):
             checkpoint = os.path.join(args.out_dir, "open_ended_latest.pt")
+        args.checkpoint = checkpoint
         print("Evaluation Config")
         print(f"dataset={args.dataset}")
         print(f"dataset_root={dataset_root}")
@@ -132,6 +134,11 @@ if __name__ == "__main__":
         print(f"test_size={len(test_dataset)}")
         print(f"out_dir={args.out_dir}")
         print(f"checkpoint={checkpoint}")
+        if os.path.exists(checkpoint):
+            ckpt_size_mb = os.path.getsize(checkpoint) / (1024 * 1024)
+            ckpt_mtime = datetime.fromtimestamp(os.path.getmtime(checkpoint)).isoformat(timespec="seconds")
+            print(f"checkpoint_size_mb={ckpt_size_mb:.2f}")
+            print(f"checkpoint_modified={ckpt_mtime}")
 
         if args.verbose:
             print(f">> Loading pre-trained model {checkpoint}!")
