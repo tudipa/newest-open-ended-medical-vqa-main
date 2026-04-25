@@ -5,6 +5,7 @@ import os
 import random
 import re
 import string
+from importlib import metadata
 from contextlib import nullcontext
 from datetime import datetime
 
@@ -153,11 +154,19 @@ def debug_mismatches(pred_texts, gold_texts, k=20):
 
 def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    bertscore_model_type = getattr(args, 'bertscore_model_type', 'bert-base-uncased')
+    bertscore_lang = getattr(args, 'bertscore_lang', 'en')
+    bertscore_rescale = bool(getattr(args, 'bertscore_rescale_with_baseline', False))
+    bertscore_compat = bool(getattr(args, 'bertscore_first_commit_compat', False))
+
     print(f'Evaluation device={device}')
     print('BERTScore Config')
-    print('bertscore_model_type=bert-base-uncased')
-    print('bertscore_lang=en')
+    print(f'bertscore_model_type={bertscore_model_type}')
+    print(f'bertscore_lang={bertscore_lang}')
+    print(f'bertscore_rescale_with_baseline={bertscore_rescale}')
+    print(f'bertscore_first_commit_compat={bertscore_compat}')
     print(f'bertscore_device={device.type}')
+    _print_metric_versions()
 
     checkpoint_path = getattr(args, 'checkpoint', None)
     if checkpoint_path:
@@ -265,7 +274,10 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                 bert_score,
                 references=reference,
                 predictions=candidate,
-                model_type='bert-base-uncased',
+                model_type=bertscore_model_type,
+                lang=bertscore_lang,
+                rescale_with_baseline=bertscore_rescale,
+                first_commit_compat=bertscore_compat,
                 device_type=device.type,
             )
             orig_bert_avg3 += a_orig['f1'][0]
@@ -302,7 +314,10 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                 bert_score,
                 references=[ref_text],
                 predictions=[pred_text],
-                model_type='bert-base-uncased',
+                model_type=bertscore_model_type,
+                lang=bertscore_lang,
+                rescale_with_baseline=bertscore_rescale,
+                first_commit_compat=bertscore_compat,
                 device_type=device.type,
             )
             sample_bert = float(a['f1'][0])
@@ -377,7 +392,10 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             bert_score,
             references=gold_texts,
             predictions=gold_texts,
-            model_type='bert-base-uncased',
+            model_type=bertscore_model_type,
+            lang=bertscore_lang,
+            rescale_with_baseline=bertscore_rescale,
+            first_commit_compat=bertscore_compat,
             device_type=device.type,
         )
         rr_mean = sum(rr['f1']) / len(rr['f1'])
@@ -389,7 +407,10 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             bert_score,
             references=shuffled_refs,
             predictions=pred_texts,
-            model_type='bert-base-uncased',
+            model_type=bertscore_model_type,
+            lang=bertscore_lang,
+            rescale_with_baseline=bertscore_rescale,
+            first_commit_compat=bertscore_compat,
             device_type=device.type,
         )
         pr_mean = sum(pr['f1']) / len(pr['f1'])
@@ -400,7 +421,10 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
             bert_score,
             references=gold_texts,
             predictions=empty_preds,
-            model_type='bert-base-uncased',
+            model_type=bertscore_model_type,
+            lang=bertscore_lang,
+            rescale_with_baseline=bertscore_rescale,
+            first_commit_compat=bertscore_compat,
             device_type=device.type,
         )
         er_mean = sum(er['f1']) / len(er['f1'])
@@ -450,23 +474,46 @@ def _percentile(values, pct):
     return float(xs[idx])
 
 
-def _bertscore_compute(metric, references, predictions, model_type, device_type):
+def _bertscore_compute(
+    metric,
+    references,
+    predictions,
+    model_type,
+    lang,
+    rescale_with_baseline,
+    first_commit_compat,
+    device_type,
+):
+    kwargs = {
+        'references': references,
+        'predictions': predictions,
+        'model_type': model_type,
+    }
+    if not first_commit_compat:
+        if lang:
+            kwargs['lang'] = lang
+        kwargs['rescale_with_baseline'] = rescale_with_baseline
+
     try:
-        result = metric.compute(
-            references=references,
-            predictions=predictions,
-            model_type=model_type,
-            lang='en',
-            device=device_type,
-        )
+        kwargs['device'] = device_type
+        return metric.compute(**kwargs)
     except TypeError:
-        result = metric.compute(
-            references=references,
-            predictions=predictions,
-            model_type=model_type,
-            lang='en',
-        )
-    return result
+        kwargs.pop('device', None)
+        return metric.compute(**kwargs)
+
+
+def _safe_pkg_version(name):
+    try:
+        return metadata.version(name)
+    except Exception:
+        return 'unknown'
+
+
+def _print_metric_versions():
+    print('Metric Library Versions')
+    print(f"evaluate={_safe_pkg_version('evaluate')}")
+    print(f"bertscore={_safe_pkg_version('bert-score')}")
+    print(f"transformers={_safe_pkg_version('transformers')}")
 
 
 def _find_run_config_file(out_dir):

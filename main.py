@@ -43,6 +43,15 @@ def parse_argument():
     parser.add_argument("--checkpoint", type=str)
     parser.add_argument("--eval", dest="eval", action="store_true")
     parser.add_argument("--verbose", dest="verbose", action="store_true")
+    parser.add_argument("--bertscore_model_type", type=str, default="bert-base-uncased")
+    parser.add_argument("--bertscore_lang", type=str, default="en")
+    parser.add_argument("--bertscore_rescale_with_baseline", dest="bertscore_rescale_with_baseline", action="store_true")
+    parser.add_argument(
+        "--bertscore_first_commit_compat",
+        dest="bertscore_first_commit_compat",
+        action="store_true",
+        help="Match first-commit BERTScore call style (model_type only, no explicit lang/rescale).",
+    )
 
     args = parser.parse_args()
     set_random_seeds(args.seed)
@@ -134,6 +143,10 @@ if __name__ == "__main__":
         print(f"test_size={len(test_dataset)}")
         print(f"out_dir={args.out_dir}")
         print(f"checkpoint={checkpoint}")
+        print(f"bertscore_model_type={args.bertscore_model_type}")
+        print(f"bertscore_lang={args.bertscore_lang}")
+        print(f"bertscore_rescale_with_baseline={args.bertscore_rescale_with_baseline}")
+        print(f"bertscore_first_commit_compat={args.bertscore_first_commit_compat}")
         if os.path.exists(checkpoint):
             ckpt_size_mb = os.path.getsize(checkpoint) / (1024 * 1024)
             ckpt_mtime = datetime.fromtimestamp(os.path.getmtime(checkpoint)).isoformat(timespec="seconds")
