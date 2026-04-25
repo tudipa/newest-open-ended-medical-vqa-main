@@ -49,6 +49,7 @@ checkpoints/
 # Data artifacts (keep raw datasets outside git)
 ../vqa_datasets/
 vqa_datasets/
+datasets/
 *.pkl
 
 # Common ML artifacts
