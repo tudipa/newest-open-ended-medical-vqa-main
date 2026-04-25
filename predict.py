@@ -57,6 +57,17 @@ def normalize_answer(s: str) -> str:
     return s
 
 
+def clean_prediction_text(s: str) -> str:
+    if s is None:
+        return ''
+    s = str(s)
+    s = s.replace('<|endoftext|>', ' ')
+    s = s.replace('</s>', ' ')
+    s = s.replace('<pad>', ' ')
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+
 def normalize_text(s: str) -> str:
     if s is None:
         return ''
@@ -246,6 +257,7 @@ def eval_gpt_open_ended(model, dataset, args, print_vis_token_meaning=True):
                         entry_length=base_dataset.max_seqs_len[1],
                         temperature=1,
                     )[0]
+                    out_text = clean_prediction_text(out_text)
 
             gold_answer = _get_gold_answer(base_dataset, raw_idx)
             question_text = base_dataset.questions[raw_idx] if hasattr(base_dataset, 'questions') else ''
