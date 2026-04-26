@@ -32,8 +32,13 @@ SETTING="${SETTING:-frozen}"
 PREFIX_LENGTH="${PREFIX_LENGTH:-8}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 EPOCHS="${EPOCHS:-30}"
-LR="${LR:-5e-3}"
+LR="${LR:-1e-4}"
 MLP_DROPOUT="${MLP_DROPOUT:-0.5}"
+USE_DAE="${USE_DAE:-0}"
+DAE_NOISE_STD="${DAE_NOISE_STD:-0.05}"
+DAE_BOTTLENECK_DIM="${DAE_BOTTLENECK_DIM:-256}"
+DAE_LOSS_WEIGHT="${DAE_LOSS_WEIGHT:-0.1}"
+DAE_RECON_LOSS="${DAE_RECON_LOSS:-mse}"
 MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-0}"
 MAX_VAL_SAMPLES="${MAX_VAL_SAMPLES:-0}"
 MAX_TEST_SAMPLES="${MAX_TEST_SAMPLES:-0}"
@@ -48,10 +53,18 @@ set -- \
   --epochs "$EPOCHS" \
   --lr "$LR" \
   --mlp_dropout "$MLP_DROPOUT" \
+  --dae_noise_std "$DAE_NOISE_STD" \
+  --dae_bottleneck_dim "$DAE_BOTTLENECK_DIM" \
+  --dae_loss_weight "$DAE_LOSS_WEIGHT" \
+  --dae_recon_loss "$DAE_RECON_LOSS" \
   --max_train_samples "$MAX_TRAIN_SAMPLES" \
   --max_val_samples "$MAX_VAL_SAMPLES" \
   --max_test_samples "$MAX_TEST_SAMPLES" \
   --out_dir "$RUN_DIR"
+
+if [ "$USE_DAE" = "1" ]; then
+  set -- "$@" --use_dae
+fi
 
 # Persist full run metadata for reproducibility
 CONFIG_FILE="$RUN_DIR/run_config.txt"

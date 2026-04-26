@@ -10,6 +10,11 @@ from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup
 
 
+def _latest_dae_loss(model):
+    wrapped = model.module if hasattr(model, "module") else model
+    return getattr(wrapped, "latest_dae_loss", None)
+
+
 def pytorch_model_run(train_loader, valid_loader, model_obj, args):
     accelerator = Accelerator()
     device = accelerator.device
@@ -77,7 +82,12 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                             ignore_index=0,
                         )
 
-                    loss = loss / logits.size(0)
+                    qa_loss = loss / logits.size(0)
+                    dae_loss = _latest_dae_loss(model)
+                    if dae_loss is not None:
+                        loss = qa_loss + args.dae_loss_weight * dae_loss
+                    else:
+                        loss = qa_loss
 
                     accelerator.backward(loss)
                     optimizer.step()
@@ -87,7 +97,10 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
 
                     total_loss += loss.item()
                     avg_loss = total_loss / (i + 1)
-                    desc = f"Epoch {epoch} - loss {avg_loss:.20f}"
+                    if dae_loss is not None:
+                        desc = f"Epoch {epoch} - loss {avg_loss:.20f} -qa {qa_loss.item():.6f} -dae {dae_loss.item():.6f}"
+                    else:
+                        desc = f"Epoch {epoch} - loss {avg_loss:.20f}"
                     epoch_pbar.set_description(desc)
                     epoch_pbar.update(prefix.shape[0])
 
@@ -118,11 +131,21 @@ def pytorch_model_run(train_loader, valid_loader, model_obj, args):
                             ignore_index=0,
                         )
 
-                    loss = loss / logits.size(0)
-                    total_loss += loss.item()
+                    qa_loss = loss / logits.size(0)
+                    dae_loss = _latest_dae_loss(model)
+                    if dae_loss is not None:
+                        total_batch_loss = qa_loss + args.dae_loss_weight * dae_loss
+                    else:
+                        total_batch_loss = qa_loss
+
+                    # Keep val selection tied to task quality (QA loss), not reconstruction regularizer.
+                    total_loss += qa_loss.item()
 
                 avg_val_loss = total_loss / (i + 1)
-                desc = f"VAL Epoch {epoch} - loss {avg_val_loss:.20f}"
+                if dae_loss is not None:
+                    desc = f"VAL Epoch {epoch} - loss {avg_val_loss:.20f} -qa {qa_loss.item():.6f} -dae {dae_loss.item():.6f}"
+                else:
+                    desc = f"VAL Epoch {epoch} - loss {avg_val_loss:.20f}"
                 epoch_pbar.set_description(desc)
                 epoch_pbar.update(prefix.shape[0])
 

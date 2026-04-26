@@ -18,8 +18,51 @@ from transformers import AutoTokenizer,AutoModelForCausalLM,AutoConfig
 
 from prefix_mappers import MLP, TransformerMapper
 
+
+class DenoisingAutoencoder(nn.Module):
+    def __init__(self, input_dim, bottleneck_dim=256, dropout=0.1):
+        super().__init__()
+        hidden_dim = max(bottleneck_dim * 2, input_dim // 2)
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, bottleneck_dim),
+            nn.GELU(),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(bottleneck_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, input_dim),
+        )
+
+    def forward(self, x):
+        z = self.encoder(x)
+        x_recon = self.decoder(z)
+        return z, x_recon
+
+
 class VQAmedModel(nn.Module):
+    def _process_prefix_with_dae(self, prefix, training=True):
+        self.latest_dae_loss = None
+        if not self.use_dae:
+            return prefix
+
+        clean_prefix = prefix
+        noisy_prefix = clean_prefix
+        if training and self.dae_noise_std > 0:
+            noisy_prefix = clean_prefix + torch.randn_like(clean_prefix) * self.dae_noise_std
+
+        denoised_prefix, reconstructed_prefix = self.dae(noisy_prefix)
+        if self.dae_recon_loss == "smooth_l1":
+            self.latest_dae_loss = nnf.smooth_l1_loss(reconstructed_prefix, clean_prefix)
+        else:
+            self.latest_dae_loss = nnf.mse_loss(reconstructed_prefix, clean_prefix)
+        return denoised_prefix
+
     def forward(self, prefix, labels, tokens, mask, q_len, batch_size):
+        prefix = self._process_prefix_with_dae(prefix, training=self.training)
         prefix_projections = self.clip_project(prefix).view(-1, self.prefix_length, self.gpt_embedding_size)
         if self.gpttype=='microsoft/biogpt':
             embedding = self.gpt.transformer.embed_tokens(tokens)
@@ -29,7 +72,9 @@ class VQAmedModel(nn.Module):
             # insert the visual prefix after the question 
             embedding[b,q_len[b]:q_len[b]+self.prefix_length,:] = prefix_projections[b]  
         return self.gpt(inputs_embeds=embedding, attention_mask=mask)
+
     def generate(self, prefix, labels, tokens, mask, q_len):
+        prefix = self._process_prefix_with_dae(prefix.view(1, -1), training=False)
         prefix_projections = self.clip_project(prefix.view(1, -1)).view(self.prefix_length, self.gpt_embedding_size)
         if self.gpttype=='microsoft/biogpt':
             embedding_txt = self.gpt.transformer.embed_tokens(tokens)
@@ -58,6 +103,11 @@ class VQAmedModel(nn.Module):
             self.model_type = 'gpt2'
         self.setting = setting
         self.prefix_length = prefix_length
+        self.use_dae = bool(getattr(args, "use_dae", False))
+        self.dae_noise_std = float(getattr(args, "dae_noise_std", 0.05))
+        self.dae_bottleneck_dim = int(getattr(args, "dae_bottleneck_dim", 256))
+        self.dae_recon_loss = str(getattr(args, "dae_recon_loss", "mse"))
+        self.latest_dae_loss = None
         self.gpt = AutoModelForCausalLM.from_pretrained(gpttype,load_in_8bit=True,device_map='auto')
         # load the relevant fine-tuning strategy 
         if setting == "lora":
@@ -77,6 +127,12 @@ class VQAmedModel(nn.Module):
                 param.requires_grad = False
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpttype)
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
+        if self.use_dae:
+            self.dae = DenoisingAutoencoder(
+                input_dim=prefix_size,
+                bottleneck_dim=self.dae_bottleneck_dim,
+                dropout=0.1,
+            )
         mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         if mapping_type == "MLP":
             self.clip_project = MLP((
@@ -97,20 +153,40 @@ class VQAmedModel(nn.Module):
 
 # adaptation of VQAmedModel for ablation studies
 class VQAmedModel_abl(nn.Module):
+    def _process_prefix_with_dae(self, prefix, training=True):
+        self.latest_dae_loss = None
+        if not self.use_dae:
+            return prefix
+
+        clean_prefix = prefix
+        noisy_prefix = clean_prefix
+        if training and self.dae_noise_std > 0:
+            noisy_prefix = clean_prefix + torch.randn_like(clean_prefix) * self.dae_noise_std
+
+        denoised_prefix, reconstructed_prefix = self.dae(noisy_prefix)
+        if self.dae_recon_loss == "smooth_l1":
+            self.latest_dae_loss = nnf.smooth_l1_loss(reconstructed_prefix, clean_prefix)
+        else:
+            self.latest_dae_loss = nnf.mse_loss(reconstructed_prefix, clean_prefix)
+        return denoised_prefix
+
     def forward(self, prefix, labels, tokens, mask, q_len, batch_size,abl):
         embeddings = self.gpt.transformer.wte(tokens)
         if abl=="replace_visual":
             for b in range(batch_size):
                 embeddings[b,q_len[b]:q_len[b]+self.prefix_length,:] = self.nv_tokens[b]  
         elif abl=="remove_question":
+            prefix = self._process_prefix_with_dae(prefix, training=self.training)
             prefix_projections = self.clip_project(prefix).view(-1, self.prefix_length, self.gpt_embedding_size)
             embeddings[:,q_len[0]:q_len[0]+self.prefix_length,:] = prefix_projections
         elif abl=="swap":
+            prefix = self._process_prefix_with_dae(prefix, training=self.training)
             prefix_projections = self.clip_project(prefix).view(-1, self.prefix_length, self.gpt_embedding_size)
             embeddings[:,q_len[0]:q_len[0]+self.prefix_length,:] = prefix_projections
         return self.gpt(inputs_embeds=embeddings, attention_mask=mask)
 
     def generate(self, prefix, labels, tokens, mask, q_len,abl):
+        prefix = self._process_prefix_with_dae(prefix.view(1, -1), training=False)
         prefix_projections = self.clip_project(prefix.view(1, -1)).view(self.prefix_length, self.gpt_embedding_size)
         embeddings = self.gpt.transformer.wte(tokens)
         if abl=="replace_visual":
@@ -138,6 +214,11 @@ class VQAmedModel_abl(nn.Module):
         self.model_type = 'gpt2'
         self.setting = setting
         self.prefix_length = prefix_length
+        self.use_dae = bool(getattr(args, "use_dae", False))
+        self.dae_noise_std = float(getattr(args, "dae_noise_std", 0.05))
+        self.dae_bottleneck_dim = int(getattr(args, "dae_bottleneck_dim", 256))
+        self.dae_recon_loss = str(getattr(args, "dae_recon_loss", "mse"))
+        self.latest_dae_loss = None
         self.gpt = GPT2LMHeadModel.from_pretrained(gpttype,load_in_8bit=True,device_map='auto')
         if setting == "lora":
             peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
@@ -156,6 +237,12 @@ class VQAmedModel_abl(nn.Module):
                 param.requires_grad = False
         self.tokenizer = GPT2Tokenizer.from_pretrained(gpttype)
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
+        if self.use_dae:
+            self.dae = DenoisingAutoencoder(
+                input_dim=prefix_size,
+                bottleneck_dim=self.dae_bottleneck_dim,
+                dropout=0.1,
+            )
         mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         # for the replace_visual ablation study we replace the visual tokens with learnable parameters 
         self.nv_tokens = torch.nn.Parameter(torch.randn(args.batch_size,prefix_length,self.gpt_embedding_size),requires_grad=True).cuda()

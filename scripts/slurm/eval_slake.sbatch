@@ -29,6 +29,11 @@ DATASET_PATH="${DATASET_PATH:-/home/s225507154/datasets/}"
 MODEL_TYPE="${MODEL_TYPE:-gpt2-xl}"
 SETTING="${SETTING:-frozen}"
 PREFIX_LENGTH="${PREFIX_LENGTH:-8}"
+USE_DAE="${USE_DAE:-0}"
+DAE_NOISE_STD="${DAE_NOISE_STD:-0.05}"
+DAE_BOTTLENECK_DIM="${DAE_BOTTLENECK_DIM:-256}"
+DAE_LOSS_WEIGHT="${DAE_LOSS_WEIGHT:-0.1}"
+DAE_RECON_LOSS="${DAE_RECON_LOSS:-mse}"
 MAX_TEST_SAMPLES="${MAX_TEST_SAMPLES:-8}"
 OUT_DIR="${OUT_DIR:-}"
 
@@ -44,10 +49,18 @@ set -- \
   --model_type "$MODEL_TYPE" \
   --setting "$SETTING" \
   --prefix_length "$PREFIX_LENGTH" \
+  --dae_noise_std "$DAE_NOISE_STD" \
+  --dae_bottleneck_dim "$DAE_BOTTLENECK_DIM" \
+  --dae_loss_weight "$DAE_LOSS_WEIGHT" \
+  --dae_recon_loss "$DAE_RECON_LOSS" \
   --out_dir "$OUT_DIR" \
   --max_test_samples "$MAX_TEST_SAMPLES" \
   --eval \
   --verbose
+
+if [ "$USE_DAE" = "1" ]; then
+  set -- "$@" --use_dae
+fi
 
 echo "Evaluation args: $*"
 
