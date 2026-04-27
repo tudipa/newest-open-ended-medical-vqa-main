@@ -133,16 +133,17 @@ class VQAmedModel(nn.Module):
                 bottleneck_dim=self.dae_bottleneck_dim,
                 dropout=0.1,
             )
+        mapper_input_size = self.dae_bottleneck_dim if self.use_dae else prefix_size
         mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         if mapping_type == "MLP":
             self.clip_project = MLP((
-                    prefix_size,
+                    mapper_input_size,
                     (self.gpt_embedding_size * prefix_length) // 2,
                     self.gpt_embedding_size * prefix_length,
                     self.gpt_embedding_size * prefix_length), dropout=mlp_dropout)
         elif mapping_type == "Transformer":
             self.clip_project = TransformerMapper(
-                prefix_size,
+                mapper_input_size,
                 self.gpt_embedding_size,
                 prefix_length,
                 clip_length,
@@ -243,17 +244,18 @@ class VQAmedModel_abl(nn.Module):
                 bottleneck_dim=self.dae_bottleneck_dim,
                 dropout=0.1,
             )
+        mapper_input_size = self.dae_bottleneck_dim if self.use_dae else prefix_size
         mlp_dropout = getattr(args, "mlp_dropout", 0.5)
         # for the replace_visual ablation study we replace the visual tokens with learnable parameters 
         self.nv_tokens = torch.nn.Parameter(torch.randn(args.batch_size,prefix_length,self.gpt_embedding_size),requires_grad=True).cuda()
         if mapping_type == "MLP":
-            self.clip_project = MLP((prefix_size,
+            self.clip_project = MLP((mapper_input_size,
                     (self.gpt_embedding_size * prefix_length) // 2,
                     self.gpt_embedding_size * prefix_length,
                     self.gpt_embedding_size * prefix_length), dropout=mlp_dropout)
         elif mapping_type == "Transformer":
             self.clip_project = TransformerMapper(
-                prefix_size,
+                mapper_input_size,
                 self.gpt_embedding_size,
                 prefix_length,
                 clip_length,
