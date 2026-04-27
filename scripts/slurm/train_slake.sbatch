@@ -39,6 +39,9 @@ DAE_NOISE_STD="${DAE_NOISE_STD:-0.05}"
 DAE_BOTTLENECK_DIM="${DAE_BOTTLENECK_DIM:-256}"
 DAE_LOSS_WEIGHT="${DAE_LOSS_WEIGHT:-0.1}"
 DAE_RECON_LOSS="${DAE_RECON_LOSS:-mse}"
+DAE_CHECKPOINT="${DAE_CHECKPOINT:-}"
+DAE_FREEZE_ENCODER="${DAE_FREEZE_ENCODER:-0}"
+DAE_FREEZE_DECODER="${DAE_FREEZE_DECODER:-0}"
 MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-0}"
 MAX_VAL_SAMPLES="${MAX_VAL_SAMPLES:-0}"
 MAX_TEST_SAMPLES="${MAX_TEST_SAMPLES:-0}"
@@ -65,6 +68,15 @@ set -- \
 if [ "$USE_DAE" = "1" ]; then
   set -- "$@" --use_dae
 fi
+if [ -n "$DAE_CHECKPOINT" ]; then
+  set -- "$@" --dae_checkpoint "$DAE_CHECKPOINT"
+fi
+if [ "$DAE_FREEZE_ENCODER" = "1" ]; then
+  set -- "$@" --dae_freeze_encoder
+fi
+if [ "$DAE_FREEZE_DECODER" = "1" ]; then
+  set -- "$@" --dae_freeze_decoder
+fi
 
 # Persist full run metadata for reproducibility
 CONFIG_FILE="$RUN_DIR/run_config.txt"
@@ -84,6 +96,11 @@ START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
   echo "git_commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "git_branch=$(git branch --show-current 2>/dev/null || echo unknown)"
   echo "project_dir=/home/s225507154/projects/newest-open-ended-medical-vqa-main"
+  echo ""
+  echo "use_dae=$USE_DAE"
+  echo "dae_checkpoint=$DAE_CHECKPOINT"
+  echo "dae_freeze_encoder=$DAE_FREEZE_ENCODER"
+  echo "dae_freeze_decoder=$DAE_FREEZE_DECODER"
   echo ""
   echo "train_args=$*"
 } > "$CONFIG_FILE"

@@ -19,6 +19,21 @@ from transformers import AutoTokenizer,AutoModelForCausalLM,AutoConfig
 from prefix_mappers import MLP, TransformerMapper
 
 
+def _extract_dae_state(payload):
+    if not isinstance(payload, dict):
+        raise ValueError("Unsupported DAE checkpoint format")
+
+    if "dae_state" in payload and isinstance(payload["dae_state"], dict):
+        state = payload["dae_state"]
+    else:
+        state = payload
+
+    # Accept either raw DAE keys (encoder.* / decoder.*) or model-prefixed keys (dae.encoder.*).
+    if any(k.startswith("dae.") for k in state.keys()):
+        state = {k[len("dae.") :]: v for k, v in state.items() if k.startswith("dae.")}
+    return state
+
+
 class DenoisingAutoencoder(nn.Module):
     def __init__(self, input_dim, bottleneck_dim=256, dropout=0.1):
         super().__init__()
@@ -44,6 +59,29 @@ class DenoisingAutoencoder(nn.Module):
 
 
 class VQAmedModel(nn.Module):
+    def load_dae_checkpoint(self, checkpoint_path, freeze_encoder=False, freeze_decoder=False):
+        if not self.use_dae or not hasattr(self, "dae"):
+            raise ValueError("DAE is not enabled for this model instance")
+        if not checkpoint_path:
+            raise ValueError("DAE checkpoint path is empty")
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"DAE checkpoint not found: {checkpoint_path}")
+
+        payload = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+        dae_state = _extract_dae_state(payload)
+        self.dae.load_state_dict(dae_state, strict=True)
+
+        if freeze_encoder:
+            for p in self.dae.encoder.parameters():
+                p.requires_grad = False
+        if freeze_decoder:
+            for p in self.dae.decoder.parameters():
+                p.requires_grad = False
+
+        print(
+            f"[dae] loaded checkpoint={checkpoint_path} freeze_encoder={freeze_encoder} freeze_decoder={freeze_decoder}"
+        )
+
     def _process_prefix_with_dae(self, prefix, training=True):
         self.latest_dae_loss = None
         if not self.use_dae:
@@ -154,6 +192,29 @@ class VQAmedModel(nn.Module):
 
 # adaptation of VQAmedModel for ablation studies
 class VQAmedModel_abl(nn.Module):
+    def load_dae_checkpoint(self, checkpoint_path, freeze_encoder=False, freeze_decoder=False):
+        if not self.use_dae or not hasattr(self, "dae"):
+            raise ValueError("DAE is not enabled for this model instance")
+        if not checkpoint_path:
+            raise ValueError("DAE checkpoint path is empty")
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"DAE checkpoint not found: {checkpoint_path}")
+
+        payload = torch.load(checkpoint_path, map_location=torch.device("cpu"))
+        dae_state = _extract_dae_state(payload)
+        self.dae.load_state_dict(dae_state, strict=True)
+
+        if freeze_encoder:
+            for p in self.dae.encoder.parameters():
+                p.requires_grad = False
+        if freeze_decoder:
+            for p in self.dae.decoder.parameters():
+                p.requires_grad = False
+
+        print(
+            f"[dae] loaded checkpoint={checkpoint_path} freeze_encoder={freeze_encoder} freeze_decoder={freeze_decoder}"
+        )
+
     def _process_prefix_with_dae(self, prefix, training=True):
         self.latest_dae_loss = None
         if not self.use_dae:

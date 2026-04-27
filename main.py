@@ -31,6 +31,9 @@ def parse_argument():
     parser.add_argument("--dae_bottleneck_dim", type=int, default=256)
     parser.add_argument("--dae_loss_weight", type=float, default=0.1)
     parser.add_argument("--dae_recon_loss", type=str, default="mse", choices=("mse", "smooth_l1"))
+    parser.add_argument("--dae_checkpoint", type=str, default="")
+    parser.add_argument("--dae_freeze_encoder", dest="dae_freeze_encoder", action="store_true")
+    parser.add_argument("--dae_freeze_decoder", dest="dae_freeze_decoder", action="store_true")
     parser.add_argument("--prefix_length", type=int, default=8)
     parser.add_argument("--dataset_path", type=str, default="../vqa_datasets/")
     parser.add_argument("--batch_size", type=int, default=32)
@@ -126,6 +129,13 @@ if __name__ == "__main__":
             args=args,
         )
 
+    if args.use_dae and args.dae_checkpoint:
+        model.load_dae_checkpoint(
+            args.dae_checkpoint,
+            freeze_encoder=args.dae_freeze_encoder,
+            freeze_decoder=args.dae_freeze_decoder,
+        )
+
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
 
@@ -148,6 +158,9 @@ if __name__ == "__main__":
         print(f"dae_bottleneck_dim={args.dae_bottleneck_dim}")
         print(f"dae_loss_weight={args.dae_loss_weight}")
         print(f"dae_recon_loss={args.dae_recon_loss}")
+        print(f"dae_checkpoint={args.dae_checkpoint}")
+        print(f"dae_freeze_encoder={args.dae_freeze_encoder}")
+        print(f"dae_freeze_decoder={args.dae_freeze_decoder}")
         print(f"batch_size={args.batch_size}")
         print(f"max_test_samples={args.max_test_samples}")
         print(f"test_size={len(test_dataset)}")
